@@ -99,5 +99,26 @@ CREATE TABLE IF NOT EXISTS pivot_data (
 CREATE INDEX IF NOT EXISTS idx_pivot_ticker_timeframe 
 ON pivot_data(ticker, timeframe);
 
+-- Add the ce_data table if it doesn't exist yet
+CREATE TABLE IF NOT EXISTS ce_data (
+    id SERIAL PRIMARY KEY,
+    ticker VARCHAR(30) NOT NULL,
+    timeframe VARCHAR(10) NOT NULL,
+    timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    atr_period INTEGER NOT NULL,
+    atr_multiplier NUMERIC(5, 2) NOT NULL,
+    atr_value NUMERIC(20, 8),
+    long_stop NUMERIC(20, 8),
+    short_stop NUMERIC(20, 8),
+    direction INTEGER NOT NULL,
+    buy_signal BOOLEAN NOT NULL DEFAULT FALSE,
+    sell_signal BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT ce_data_unique UNIQUE (ticker, timeframe, timestamp)
+);
+
+-- Add index for better performance on chandelier exit lookups
+CREATE INDEX IF NOT EXISTS idx_ce_ticker_timeframe 
+ON ce_data(ticker, timeframe);
+
 -- Comment: All timestamp columns use TIMESTAMP WITHOUT TIME ZONE
 -- This ensures consistent behavior between all tables 

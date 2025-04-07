@@ -8,6 +8,7 @@ from indicators.calculator import IndicatorCalculator
 from indicators.rsi_calculator import RSICalculator
 from indicators.obv_calculator import OBVCalculator
 from indicators.pivot_calculator import PivotCalculator
+from indicators.ce_calculator import CECalculator
 
 # Configure logging
 logging.basicConfig(
@@ -147,7 +148,7 @@ def main():
     parser.add_argument('--timeframe', type=str, help='Time timeframe (e.g., 1h, 4h, 1d)')
     parser.add_argument('--skip-indicators', action='store_true', help='Skip indicator calculation')
     parser.add_argument('--indicators', type=str, 
-                        choices=['all', 'ema', 'rsi', 'obv', 'pivot'], 
+                        choices=['all', 'ema', 'rsi', 'obv', 'pivot', 'ce'], 
                         default='all', 
                         help='Specify which indicators to calculate (default: all)')
     parser.add_argument('--skip-ohlc', action='store_true', help='Skip OHLC data fetching')
@@ -203,6 +204,12 @@ def main():
                         logger.info(f"Calculating Pivot Points for {ticker} {timeframe}")
                         pivot_calculator = PivotCalculator()
                         pivot_calculator.calculate_pivots(ticker, timeframe)
+                    
+                    # Calculate Chandelier Exit
+                    if args.indicators in ['all', 'ce']:
+                        logger.info(f"Calculating Chandelier Exit for {ticker} {timeframe}")
+                        ce_calculator = CECalculator()
+                        ce_calculator.calculate_ce(ticker, timeframe)
                         
             except Exception as e:
                 logger.error(f"Failed to process {ticker} {timeframe}: {str(e)}")

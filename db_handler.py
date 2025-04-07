@@ -307,6 +307,49 @@ class DBHandler:
             self.conn.rollback()
             raise
 
+    def save_ce_data(self, ce_records: List[Dict]):
+        """Save Chandelier Exit data to PostgreSQL ce_data table"""
+        try:
+            # Prepare data for batch insert
+            values = []
+            for record in ce_records:
+                values.append((
+                    record['ticker'],
+                    record['timeframe'],
+                    record['timestamp'],
+                    record['atr_period'],
+                    record['atr_multiplier'],
+                    record['atr_value'],
+                    record['long_stop'],
+                    record['short_stop'],
+                    record['direction'],
+                    record['buy_signal'],
+                    record['sell_signal']
+                ))
+
+            if values:
+                execute_values(
+                    self.cur,
+                    """
+                    INSERT INTO ce_data (
+                        ticker, timeframe, timestamp, atr_period, atr_multiplier, atr_value,
+                        long_stop, short_stop, direction, buy_signal, sell_signal
+                    )
+                    VALUES %s
+                    ON CONFLICT (ticker, timeframe, timestamp) DO NOTHING
+                    """,
+                    values
+                )
+                self.conn.commit()
+                logger.info(f"Successfully saved {len(values)} Chandelier Exit records")
+            else:
+                logger.warning("No Chandelier Exit data to save")
+                
+        except Exception as e:
+            logger.error(f"Error saving Chandelier Exit data: {str(e)}")
+            self.conn.rollback()
+            raise
+
     def close(self):
         """Close the database connection"""
         try:
