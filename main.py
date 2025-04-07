@@ -58,8 +58,6 @@ def fetch_historical_data(ticker: str, timeframe: str, start_date: datetime = No
             # Add one interval to ensure we get the current incomplete candle
             interval_ms = client._get_interval_ms(timeframe)
             end_date = end_date + timedelta(milliseconds=interval_ms)
-            logger.info(f"start date: {start_date}")
-            logger.info(f"end date: {end_date}")
         
         # Ensure both dates are timezone-aware
         if start_date.tzinfo is None:
@@ -78,7 +76,6 @@ def fetch_historical_data(ticker: str, timeframe: str, start_date: datetime = No
             if batch_end > end_date:
                 batch_end = end_date
                 
-            logger.info(f"Fetching batch from {current_start} to {batch_end}")
             klines = client.get_klines(ticker, timeframe, current_start, batch_end)
             
             if klines:
@@ -96,14 +93,8 @@ def fetch_historical_data(ticker: str, timeframe: str, start_date: datetime = No
                 logger.warning(f"No data found for {ticker} {timeframe} in batch {current_start} to {batch_end}")
                 break
         
-        if all_klines:
-            # Print first and last candle for verification
-            first_candle = all_klines[0]
-            last_candle = all_klines[-1]
-            logger.info(f"First candle: {datetime.utcfromtimestamp(first_candle[0]/1000).replace(tzinfo=timezone.utc)} - Open: {first_candle[1]}, Close: {first_candle[4]}")
-            logger.info(f"Last candle: {datetime.utcfromtimestamp(last_candle[0]/1000).replace(tzinfo=timezone.utc)} - Open: {last_candle[1]}, Close: {last_candle[4]}")
-            logger.info(f"Total candles fetched: {len(all_klines)}")
-        else:
+        logger.info(f"Total candles fetched: {len(all_klines)}")
+        if not all_klines:
             logger.warning(f"No data found for {ticker} {timeframe}")
             
         return all_klines

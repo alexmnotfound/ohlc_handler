@@ -63,11 +63,6 @@ class RSICalculator:
         # Handle case where ema_loss is 0 (all gains, no losses)
         df['rsi'] = np.where(df['ema_loss'] == 0, 100, 100 - (100 / (1 + df.rs)))
         
-        # Debug log
-        if not df.empty:
-            last_row = df.iloc[-1]
-            logger.debug(f"Last calculated RSI value: timestamp={last_row['timestamp']}, RSI={last_row['rsi']}")
-            
         return df
 
     def _save_rsi_data(self, ticker: str, timeframe: str, df: pd.DataFrame, period: int) -> None:

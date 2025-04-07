@@ -123,14 +123,6 @@ class OBVCalculator:
                 result_df['obv_upper_band'] = result_df['obv_ma'] + (obv_std * bb_mult)
                 result_df['obv_lower_band'] = result_df['obv_ma'] - (obv_std * bb_mult)
         
-        # Debug log
-        if len(df) > 0:
-            last_row = df.iloc[-1]
-            logger.debug(f"Last calculated OBV value: {last_row['obv']}")
-            if enable_ma and 'obv_ma' in result_df:
-                last_ma = result_df.iloc[-1]['obv_ma']
-                logger.debug(f"Last calculated MA value: {last_ma}")
-        
         return result_df
 
     def _save_obv_data(self, ticker: str, timeframe: str, df: pd.DataFrame, ma_period: int, bb_std: float) -> None:

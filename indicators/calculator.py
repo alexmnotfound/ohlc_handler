@@ -45,18 +45,6 @@ class IndicatorCalculator:
     def _calculate_ema(self, df: pd.DataFrame, ticker: str, timeframe: str) -> None:
         """Calculate Exponential Moving Average and save to database"""
         try:
-            # Let's first debug by looking at sample timestamps
-            if len(df) > 0:
-                sample_ts = df['timestamp'].iloc[0]
-                # Use naive datetime to match ohlc_data
-                dt_utc = datetime.utcfromtimestamp(sample_ts / 1000)
-                logger.info(f"Sample timestamp ms: {sample_ts}, converted to UTC: {dt_utc}")
-                
-                # Let's check the last timestamps as well
-                sample_ts_last = df['timestamp'].iloc[-1]
-                dt_utc_last = datetime.utcfromtimestamp(sample_ts_last / 1000)
-                logger.info(f"Last timestamp ms: {sample_ts_last}, converted to UTC: {dt_utc_last}")
-            
             # Calculate and save EMAs one period at a time
             for period in market_config.EMA_PERIODS:
                 # Calculate EMA for this period
@@ -75,15 +63,6 @@ class IndicatorCalculator:
                         'period': period,
                         'value': float(value)
                     })
-                
-                # Log a sample EMA record for debugging
-                if len(ema_records) > 0:
-                    sample_record = ema_records[0]
-                    logger.info(f"Sample EMA record timestamp: {sample_record['timestamp']}")
-                    
-                    # And the last one
-                    last_record = ema_records[-1]
-                    logger.info(f"Last EMA record timestamp: {last_record['timestamp']}")
                 
                 # Save this period's records to database
                 if ema_records:

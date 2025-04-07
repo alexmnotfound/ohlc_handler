@@ -13,24 +13,6 @@ class DBHandler:
             self.conn = psycopg2.connect(db_config.connection_string)
             self.cur = self.conn.cursor()
             logger.info(f"Successfully connected to PostgreSQL at {db_config.host}:{db_config.port}")
-            
-            # Check the column types of both tables
-            self.cur.execute("""
-                SELECT column_name, data_type, is_nullable
-                FROM information_schema.columns
-                WHERE table_name = 'ohlc_data' AND column_name = 'timestamp'
-            """)
-            ohlc_col = self.cur.fetchone()
-            logger.info(f"OHLC timestamp column type: {ohlc_col}")
-            
-            self.cur.execute("""
-                SELECT column_name, data_type, is_nullable
-                FROM information_schema.columns
-                WHERE table_name = 'ema_data' AND column_name = 'timestamp'
-            """)
-            ema_col = self.cur.fetchone()
-            logger.info(f"EMA timestamp column type: {ema_col}")
-            
         except Exception as e:
             logger.error(f"Failed to connect to PostgreSQL: {str(e)}")
             raise
@@ -189,40 +171,16 @@ class DBHandler:
             if not results:
                 logger.warning(f"No OHLC data found for {symbol} {interval}")
                 return []
-            
-            # Debug: show sample timestamps
-            if len(results) > 0:
-                sample_row = results[0]
-                logger.info(f"Sample DB timestamp: {sample_row[0]}, epoch ms: {int(sample_row[1])}")
                 
-                # And the last one
-                last_row = results[-1]
-                logger.info(f"Last DB timestamp: {last_row[0]}, epoch ms: {int(last_row[1])}")
+            # Convert results to the expected format
+            formatted_results = []
+            for row in results:
+                # Skip the first column (original timestamp) and use the ms timestamp
+                formatted_results.append([int(row[1])] + list(row[2:]))
                 
-            # Convert to the format expected by the indicator calculator
-            klines = [
-                [
-                    int(row[1]),  # timestamp_ms
-                    str(row[2]),  # open
-                    str(row[3]),  # high
-                    str(row[4]),  # low
-                    str(row[5]),  # close
-                    str(row[6]),  # volume
-                    int(row[7]),  # close_time
-                    str(row[8]),  # quote_asset_volume
-                    int(row[9]),  # number_of_trades
-                    str(row[10]), # taker_buy_base_asset_volume
-                    str(row[11]), # taker_buy_quote_asset_volume
-                    row[12]       # ignore
-                ]
-                for row in results
-            ]
-            
-            logger.info(f"Retrieved {len(klines)} OHLC records for {symbol} {interval}")
-            return klines
-            
+            return formatted_results
         except Exception as e:
-            logger.error(f"Error getting OHLC data: {str(e)}")
+            logger.error(f"Error fetching OHLC data: {str(e)}")
             return []
 
     def save_rsi_data(self, rsi_records: List[Dict]):
