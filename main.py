@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from config import market_config
 import argparse
 from db_handler import DBHandler
+from indicators.calculator import IndicatorCalculator
 
 # Configure logging
 logging.basicConfig(
@@ -117,6 +118,7 @@ def main():
     parser.add_argument('--start', type=str, help='Start date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
     parser.add_argument('--end', type=str, help='End date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
     parser.add_argument('--timeframe', type=str, help='Time timeframe (e.g., 1h, 4h, 1d)')
+    parser.add_argument('--skip-indicators', action='store_true', help='Skip indicator calculation')
 
     args = parser.parse_args()
 
@@ -141,7 +143,14 @@ def main():
     for ticker in tickers:
         for timeframe in timeframes:
             try:
+                # Fetch OHLC data
                 fetch_historical_data(ticker, timeframe, start_date, end_date)
+                
+                # Calculate indicators if not skipped
+                if not args.skip_indicators:
+                    logger.info(f"Calculating indicators for {ticker} {timeframe}")
+                    calculator = IndicatorCalculator()
+                    calculator.calculate_indicators(ticker, timeframe)
             except Exception as e:
                 logger.error(f"Failed to process {ticker} {timeframe}: {str(e)}")
                 continue
