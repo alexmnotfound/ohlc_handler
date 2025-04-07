@@ -6,6 +6,7 @@ import argparse
 from db_handler import DBHandler
 from indicators.calculator import IndicatorCalculator
 from indicators.rsi_calculator import RSICalculator
+from indicators.obv_calculator import OBVCalculator
 
 # Configure logging
 logging.basicConfig(
@@ -120,7 +121,7 @@ def main():
     parser.add_argument('--end', type=str, help='End date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
     parser.add_argument('--timeframe', type=str, help='Time timeframe (e.g., 1h, 4h, 1d)')
     parser.add_argument('--skip-indicators', action='store_true', help='Skip indicator calculation')
-    parser.add_argument('--indicators', type=str, choices=['all', 'ema', 'rsi'], default='all', 
+    parser.add_argument('--indicators', type=str, choices=['all', 'ema', 'rsi', 'obv'], default='all', 
                         help='Specify which indicators to calculate (default: all)')
     parser.add_argument('--skip-ohlc', action='store_true', help='Skip OHLC data fetching')
 
@@ -163,6 +164,12 @@ def main():
                         logger.info(f"Calculating RSI for {ticker} {timeframe}")
                         rsi_calculator = RSICalculator()
                         rsi_calculator.calculate_rsi(ticker, timeframe)
+                    
+                    # Calculate OBV
+                    if args.indicators in ['all', 'obv']:
+                        logger.info(f"Calculating OBV for {ticker} {timeframe}")
+                        obv_calculator = OBVCalculator()
+                        obv_calculator.calculate_obv(ticker, timeframe)
             except Exception as e:
                 logger.error(f"Failed to process {ticker} {timeframe}: {str(e)}")
                 continue

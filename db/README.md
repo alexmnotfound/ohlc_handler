@@ -16,6 +16,7 @@ The database includes the following tables:
 2. `ema_data`: Stores EMA indicator values
 3. `rsi_data`: Reserved for RSI indicator values (future use)
 4. `macd_data`: Reserved for MACD indicator values (future use)
+5. `obv_data`: Stores On Balance Volume indicator values
 
 ## Important Note About Timestamps
 

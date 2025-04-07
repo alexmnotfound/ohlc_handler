@@ -57,5 +57,23 @@ CREATE TABLE IF NOT EXISTS macd_data (
     PRIMARY KEY (ticker, timeframe, timestamp, fast_period, slow_period, signal_period)
 );
 
+-- OBV (On Balance Volume) data table
+CREATE TABLE IF NOT EXISTS obv_data (
+    ticker TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    obv NUMERIC(24, 8) NOT NULL,
+    ma_period INTEGER NOT NULL,
+    ma_value NUMERIC(24, 8),
+    bb_std NUMERIC(8, 4) NOT NULL,
+    upper_band NUMERIC(24, 8),
+    lower_band NUMERIC(24, 8),
+    PRIMARY KEY (ticker, timeframe, timestamp)
+);
+
+-- Create index for faster querying by ticker and timeframe
+CREATE INDEX IF NOT EXISTS idx_obv_ticker_timeframe 
+ON obv_data(ticker, timeframe);
+
 -- Comment: All timestamp columns use TIMESTAMP WITHOUT TIME ZONE
 -- This ensures consistent behavior between all tables 

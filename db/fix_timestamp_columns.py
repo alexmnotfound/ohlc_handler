@@ -88,6 +88,12 @@ def fix_timestamp_columns():
                         ALTER TABLE {table_name}
                         ADD PRIMARY KEY (ticker, timeframe, timestamp, fast_period, slow_period, signal_period);
                     """)
+                elif table_name == 'obv_data':
+                    logger.info("Re-adding primary key for obv_data...")
+                    cur.execute(f"""
+                        ALTER TABLE {table_name}
+                        ADD PRIMARY KEY (ticker, timeframe, timestamp);
+                    """)
                 
                 logger.info(f"Fixed {table_name}.{column_name}")
         

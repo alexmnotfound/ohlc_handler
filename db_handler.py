@@ -262,6 +262,47 @@ class DBHandler:
             self.conn.rollback()
             raise
 
+    def save_obv_data(self, obv_records: List[Dict]):
+        """Save OBV data to PostgreSQL obv_data table"""
+        try:
+            # Prepare data for batch insert
+            values = []
+            for record in obv_records:
+                values.append((
+                    record['ticker'],
+                    record['timeframe'],
+                    record['timestamp'],
+                    record['obv'],
+                    record['ma_period'],
+                    record['ma_value'],
+                    record['bb_std'],
+                    record['upper_band'],
+                    record['lower_band']
+                ))
+
+            if values:
+                execute_values(
+                    self.cur,
+                    """
+                    INSERT INTO obv_data (
+                        ticker, timeframe, timestamp, obv, ma_period, ma_value, 
+                        bb_std, upper_band, lower_band
+                    )
+                    VALUES %s
+                    ON CONFLICT (ticker, timeframe, timestamp) DO NOTHING
+                    """,
+                    values
+                )
+                self.conn.commit()
+                logger.info(f"Successfully saved {len(values)} OBV records")
+            else:
+                logger.warning("No OBV data to save")
+                
+        except Exception as e:
+            logger.error(f"Error saving OBV data: {str(e)}")
+            self.conn.rollback()
+            raise
+
     def close(self):
         """Close the database connection"""
         try:
