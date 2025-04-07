@@ -33,7 +33,10 @@ def fix_timestamp_columns():
         cur.execute("""
             SELECT table_name, column_name, data_type
             FROM information_schema.columns
-            WHERE table_schema = 'public' AND column_name = 'timestamp'
+            WHERE table_schema = 'public'
+            AND column_name = 'timestamp'
+            AND data_type LIKE '%time%'
+            AND table_name IN ('ohlc_data', 'ema_data', 'rsi_data', 'obv_data', 'pivot_data')
             ORDER BY table_name;
         """)
         columns = cur.fetchall()

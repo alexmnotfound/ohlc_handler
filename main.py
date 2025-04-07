@@ -7,6 +7,7 @@ from db_handler import DBHandler
 from indicators.calculator import IndicatorCalculator
 from indicators.rsi_calculator import RSICalculator
 from indicators.obv_calculator import OBVCalculator
+from indicators.pivot_calculator import PivotCalculator
 
 # Configure logging
 logging.basicConfig(
@@ -68,30 +69,63 @@ def fetch_historical_data(ticker: str, timeframe: str, start_date: datetime = No
         logger.info(f"Fetching {ticker} {timeframe} data from {start_date} to {end_date}")
         
         all_klines = []
-        current_start = start_date
         
-        while current_start < end_date:
-            # Calculate the end time for this batch (1000 candles)
-            batch_end = current_start + timedelta(milliseconds=client._get_interval_ms(timeframe) * 1000)
-            if batch_end > end_date:
-                batch_end = end_date
-                
-            klines = client.get_klines(ticker, timeframe, current_start, batch_end)
+        # Special handling for monthly timeframe
+        if timeframe == "1M":
+            # For monthly data, we need to fetch each month separately to ensure we get all data
+            current_date = start_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             
-            if klines:
-                logger.info(f"Retrieved {len(klines)} candles for {ticker} {timeframe}")
-                all_klines.extend(klines)
+            while current_date < end_date:
+                # Calculate next month
+                if current_date.month == 12:
+                    next_month = current_date.replace(year=current_date.year + 1, month=1)
+                else:
+                    next_month = current_date.replace(month=current_date.month + 1)
                 
-                # Update current_start to the timestamp of the last candle + 1 interval
-                last_candle_time = datetime.fromtimestamp(klines[-1][0] / 1000, timezone.utc)
-                current_start = last_candle_time + timedelta(milliseconds=client._get_interval_ms(timeframe))
+                # Fetch data for this month
+                logger.info(f"Fetching monthly data for {ticker} for {current_date.year}-{current_date.month}")
+                klines = client.get_klines(ticker, timeframe, current_date, next_month)
                 
-                # Save to database
-                db.save_klines(ticker, timeframe, klines)
-                logger.info(f"Saved {len(klines)} candles to database for {ticker} {timeframe}")
-            else:
-                logger.warning(f"No data found for {ticker} {timeframe} in batch {current_start} to {batch_end}")
-                break
+                if klines:
+                    logger.info(f"Retrieved {len(klines)} candles for {ticker} {timeframe} for {current_date.year}-{current_date.month}")
+                    all_klines.extend(klines)
+                    
+                    # Save to database
+                    db.save_klines(ticker, timeframe, klines)
+                    logger.info(f"Saved {len(klines)} candles to database for {ticker} {timeframe}")
+                
+                # Move to next month regardless of whether we got data
+                current_date = next_month
+                
+                # Small delay to avoid rate limiting
+                import time
+                time.sleep(0.5)
+        else:
+            # Standard handling for non-monthly timeframes
+            current_start = start_date
+            
+            while current_start < end_date:
+                # Calculate the end time for this batch (1000 candles)
+                batch_end = current_start + timedelta(milliseconds=client._get_interval_ms(timeframe) * 1000)
+                if batch_end > end_date:
+                    batch_end = end_date
+                    
+                klines = client.get_klines(ticker, timeframe, current_start, batch_end)
+                
+                if klines:
+                    logger.info(f"Retrieved {len(klines)} candles for {ticker} {timeframe}")
+                    all_klines.extend(klines)
+                    
+                    # Update current_start to the timestamp of the last candle + 1 interval
+                    last_candle_time = datetime.fromtimestamp(klines[-1][0] / 1000, timezone.utc)
+                    current_start = last_candle_time + timedelta(milliseconds=client._get_interval_ms(timeframe))
+                    
+                    # Save to database
+                    db.save_klines(ticker, timeframe, klines)
+                    logger.info(f"Saved {len(klines)} candles to database for {ticker} {timeframe}")
+                else:
+                    logger.warning(f"No data found for {ticker} {timeframe} in batch {current_start} to {batch_end}")
+                    break
         
         logger.info(f"Total candles fetched: {len(all_klines)}")
         if not all_klines:
@@ -112,7 +146,9 @@ def main():
     parser.add_argument('--end', type=str, help='End date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
     parser.add_argument('--timeframe', type=str, help='Time timeframe (e.g., 1h, 4h, 1d)')
     parser.add_argument('--skip-indicators', action='store_true', help='Skip indicator calculation')
-    parser.add_argument('--indicators', type=str, choices=['all', 'ema', 'rsi', 'obv'], default='all', 
+    parser.add_argument('--indicators', type=str, 
+                        choices=['all', 'ema', 'rsi', 'obv', 'pivot'], 
+                        default='all', 
                         help='Specify which indicators to calculate (default: all)')
     parser.add_argument('--skip-ohlc', action='store_true', help='Skip OHLC data fetching')
 
@@ -161,6 +197,13 @@ def main():
                         logger.info(f"Calculating OBV for {ticker} {timeframe}")
                         obv_calculator = OBVCalculator()
                         obv_calculator.calculate_obv(ticker, timeframe)
+                        
+                    # Calculate Pivot Points (only for monthly timeframe)
+                    if args.indicators in ['all', 'pivot'] and timeframe == "1M":
+                        logger.info(f"Calculating Pivot Points for {ticker} {timeframe}")
+                        pivot_calculator = PivotCalculator()
+                        pivot_calculator.calculate_pivots(ticker, timeframe)
+                        
             except Exception as e:
                 logger.error(f"Failed to process {ticker} {timeframe}: {str(e)}")
                 continue

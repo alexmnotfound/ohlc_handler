@@ -75,5 +75,29 @@ CREATE TABLE IF NOT EXISTS obv_data (
 CREATE INDEX IF NOT EXISTS idx_obv_ticker_timeframe 
 ON obv_data(ticker, timeframe);
 
+-- Add the pivot_data table if it doesn't exist yet
+CREATE TABLE IF NOT EXISTS pivot_data (
+    id SERIAL PRIMARY KEY,
+    ticker VARCHAR(30) NOT NULL,
+    timeframe VARCHAR(10) NOT NULL,
+    timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    pp NUMERIC(20, 8) NOT NULL,
+    r1 NUMERIC(20, 8) NOT NULL,
+    r2 NUMERIC(20, 8) NOT NULL,
+    r3 NUMERIC(20, 8) NOT NULL,
+    r4 NUMERIC(20, 8) NOT NULL,
+    r5 NUMERIC(20, 8) NOT NULL,
+    s1 NUMERIC(20, 8) NOT NULL,
+    s2 NUMERIC(20, 8) NOT NULL,
+    s3 NUMERIC(20, 8) NOT NULL,
+    s4 NUMERIC(20, 8) NOT NULL,
+    s5 NUMERIC(20, 8) NOT NULL,
+    CONSTRAINT pivot_data_unique UNIQUE (ticker, timeframe, timestamp)
+);
+
+-- Add index for better performance on pivot lookups
+CREATE INDEX IF NOT EXISTS idx_pivot_ticker_timeframe 
+ON pivot_data(ticker, timeframe);
+
 -- Comment: All timestamp columns use TIMESTAMP WITHOUT TIME ZONE
 -- This ensures consistent behavior between all tables 

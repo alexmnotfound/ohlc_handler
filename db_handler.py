@@ -261,6 +261,52 @@ class DBHandler:
             self.conn.rollback()
             raise
 
+    def save_pivot_data(self, pivot_records: List[Dict]):
+        """Save pivot data to PostgreSQL pivot_data table"""
+        try:
+            # Prepare data for batch insert
+            values = []
+            for record in pivot_records:
+                values.append((
+                    record['ticker'],
+                    record['timeframe'],
+                    record['timestamp'],
+                    record['pp'],
+                    record['r1'],
+                    record['r2'],
+                    record['r3'],
+                    record['r4'],
+                    record['r5'],
+                    record['s1'],
+                    record['s2'],
+                    record['s3'],
+                    record['s4'],
+                    record['s5']
+                ))
+
+            if values:
+                execute_values(
+                    self.cur,
+                    """
+                    INSERT INTO pivot_data (
+                        ticker, timeframe, timestamp, pp, r1, r2, r3, r4, r5,
+                        s1, s2, s3, s4, s5
+                    )
+                    VALUES %s
+                    ON CONFLICT (ticker, timeframe, timestamp) DO NOTHING
+                    """,
+                    values
+                )
+                self.conn.commit()
+                logger.info(f"Successfully saved {len(values)} pivot records")
+            else:
+                logger.warning("No pivot data to save")
+                
+        except Exception as e:
+            logger.error(f"Error saving pivot data: {str(e)}")
+            self.conn.rollback()
+            raise
+
     def close(self):
         """Close the database connection"""
         try:
