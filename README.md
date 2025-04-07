@@ -60,11 +60,26 @@ CREATE TABLE ohlc_data (
 
 ## Configuration
 
-The service can be configured through `config.py`:
+The service uses two types of configuration:
 
+1. Environment Variables (`.env`):
+Used for sensitive information and environment-specific settings:
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=your_database_name
+DB_USER=your_database_user
+DB_PASSWORD=your_database_password
+```
+
+2. Application Configuration (`config.py`):
+Used for application settings and defaults:
 - `TICKERS`: List of trading pairs to monitor (default: ['BTCUSDT', 'ETHUSDT'])
 - `TIMEFRAMES`: Dictionary of supported timeframes (default: '1h', '4h', '1d')
 - `DEFAULT_START_DATE`: Default date to start fetching data if no data exists
+- Various technical indicator settings (EMA, RSI, etc.)
+
+The `.env` file is used for sensitive data that shouldn't be in version control, while `config.py` contains the application's configuration structure and default values.
 
 ## Usage
 
