@@ -225,6 +225,43 @@ class DBHandler:
             logger.error(f"Error getting OHLC data: {str(e)}")
             return []
 
+    def save_rsi_data(self, rsi_records: List[Dict]):
+        """Save RSI data to PostgreSQL rsi_data table"""
+        try:
+            # Prepare data for batch insert
+            values = [
+                (
+                    record['ticker'],
+                    record['timeframe'],
+                    record['timestamp'],
+                    record['period'],
+                    record['value']
+                )
+                for record in rsi_records
+            ]
+
+            if values:
+                execute_values(
+                    self.cur,
+                    """
+                    INSERT INTO rsi_data (
+                        ticker, timeframe, timestamp, period, value
+                    )
+                    VALUES %s
+                    ON CONFLICT (ticker, timeframe, timestamp, period) DO NOTHING
+                    """,
+                    values
+                )
+                self.conn.commit()
+                logger.info(f"Successfully saved {len(values)} RSI records")
+            else:
+                logger.warning("No RSI data to save")
+                
+        except Exception as e:
+            logger.error(f"Error saving RSI data: {str(e)}")
+            self.conn.rollback()
+            raise
+
     def close(self):
         """Close the database connection"""
         try:

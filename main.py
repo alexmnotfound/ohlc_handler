@@ -5,6 +5,7 @@ from config import market_config
 import argparse
 from db_handler import DBHandler
 from indicators.calculator import IndicatorCalculator
+from indicators.rsi_calculator import RSICalculator
 
 # Configure logging
 logging.basicConfig(
@@ -119,6 +120,9 @@ def main():
     parser.add_argument('--end', type=str, help='End date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
     parser.add_argument('--timeframe', type=str, help='Time timeframe (e.g., 1h, 4h, 1d)')
     parser.add_argument('--skip-indicators', action='store_true', help='Skip indicator calculation')
+    parser.add_argument('--indicators', type=str, choices=['all', 'ema', 'rsi'], default='all', 
+                        help='Specify which indicators to calculate (default: all)')
+    parser.add_argument('--skip-ohlc', action='store_true', help='Skip OHLC data fetching')
 
     args = parser.parse_args()
 
@@ -135,22 +139,30 @@ def main():
     timeframes = [args.timeframe] if args.timeframe else list(market_config.TIMEFRAMES.keys())
 
     logger.info(f"Processing {len(tickers)} tickers and {len(timeframes)} timeframes")
-    if start_date:
+    if start_date and not args.skip_ohlc:
         logger.info(f"Date range: {start_date} to {end_date or 'now'}")
-    else:
-        logger.info("Using last available date from DB or default start date")
 
     for ticker in tickers:
         for timeframe in timeframes:
             try:
-                # Fetch OHLC data
-                fetch_historical_data(ticker, timeframe, start_date, end_date)
+                # Fetch OHLC data if not skipped
+                if not args.skip_ohlc:
+                    logger.info(f"Fetching OHLC data for {ticker} {timeframe}")
+                    fetch_historical_data(ticker, timeframe, start_date, end_date)
                 
                 # Calculate indicators if not skipped
                 if not args.skip_indicators:
-                    logger.info(f"Calculating indicators for {ticker} {timeframe}")
-                    calculator = IndicatorCalculator()
-                    calculator.calculate_indicators(ticker, timeframe)
+                    # Calculate EMA
+                    if args.indicators in ['all', 'ema']:
+                        logger.info(f"Calculating EMA for {ticker} {timeframe}")
+                        calculator = IndicatorCalculator()
+                        calculator.calculate_indicators(ticker, timeframe)
+                    
+                    # Calculate RSI
+                    if args.indicators in ['all', 'rsi']:
+                        logger.info(f"Calculating RSI for {ticker} {timeframe}")
+                        rsi_calculator = RSICalculator()
+                        rsi_calculator.calculate_rsi(ticker, timeframe)
             except Exception as e:
                 logger.error(f"Failed to process {ticker} {timeframe}: {str(e)}")
                 continue
