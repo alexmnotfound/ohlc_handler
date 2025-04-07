@@ -49,9 +49,8 @@ class CECalculator:
             
     def _calculate_ce_values(self, df):
         """
-        Calculate the Chandelier Exit indicator matching TradingView's implementation.
+        Calculate the Chandelier Exit indicator exactly matching TradingView's PineScript implementation:
         
-        PineScript:
         atr = mult * ta.atr(length)
         longStop = (useClose ? ta.highest(close, length) : ta.highest(length)) - atr
         longStopPrev = nz(longStop[1], longStop)
@@ -69,101 +68,111 @@ class CECalculator:
         # Create a working copy of the dataframe
         result = df.copy()
         
-        # Step 1: Calculate ATR exactly like TradingView - using SMA of TR
-        # True Range
-        high = result['high']
-        low = result['low']
-        close = result['close']
-        
-        # Calculate TR as max(high-low, |high-prevClose|, |low-prevClose|)
-        result['tr1'] = high - low
-        result['tr2'] = abs(high - close.shift(1)).fillna(0)
-        result['tr3'] = abs(low - close.shift(1)).fillna(0)
+        # Calculate ATR exactly like TradingView - traditional implementation
+        # First calculate True Range
+        result['tr1'] = result['high'] - result['low']
+        result['tr2'] = abs(result['high'] - result['close'].shift(1))
+        result['tr3'] = abs(result['low'] - result['close'].shift(1))
         result['tr'] = result[['tr1', 'tr2', 'tr3']].max(axis=1)
         
-        # Calculate ATR as SMA of TR for 'length' periods
-        result['atr'] = result['tr'].rolling(window=length, min_periods=1).mean() * mult
+        # TradingView's ta.atr() uses Wilder's smoothing (equivalent to RMA in TradingView)
+        # This is different from a simple moving average
+        alpha = 1/length
+        result['atr'] = pd.Series(dtype=float)
         
-        # Initialize long and short stop columns
-        result['long_stop'] = np.nan
-        result['short_stop'] = np.nan
-        result['dir'] = np.nan
+        # First ATR value is simple average of first 'length' TRs
+        first_atr = result['tr'].iloc[:length].mean()
+        result.loc[result.index[length-1], 'atr'] = first_atr
         
-        # TradingView calculates C.E. iteratively, so we need to do the same
-        # Start from the length-th candle (when we have enough data)
+        # Rest use the RMA formula: atr = prev_atr * (length-1)/length + tr * 1/length
         for i in range(length, len(result)):
-            # Get data for current candle
+            prev_atr = result.loc[result.index[i-1], 'atr']
+            curr_tr = result.loc[result.index[i], 'tr']
+            result.loc[result.index[i], 'atr'] = prev_atr * (1 - alpha) + curr_tr * alpha
+        
+        # Multiply by the multiplier
+        result['atr'] = result['atr'] * mult
+        
+        # Initialize the result columns
+        result['long_stop'] = pd.Series(dtype=float)
+        result['short_stop'] = pd.Series(dtype=float)
+        result['dir'] = pd.Series(dtype=int)
+        result['dir'].iloc[0] = 1  # Initial direction is long (default in PineScript)
+        
+        # Process each row to match PineScript's calculation exactly
+        for i in range(length, len(result)):
+            # Get lookback start index
+            start_idx = i - length + 1
+            
+            # Get current values
             curr_idx = result.index[i]
-            
-            # Find highest high and lowest low in the lookback period
-            if use_close:
-                highest = result.loc[result.index[i-length+1:i+1], 'close'].max()
-                lowest = result.loc[result.index[i-length+1:i+1], 'close'].min()
-            else:
-                highest = result.loc[result.index[i-length+1:i+1], 'high'].max()
-                lowest = result.loc[result.index[i-length+1:i+1], 'low'].min()
-            
-            # Get ATR for current candle
             curr_atr = result.loc[curr_idx, 'atr']
             
-            # Calculate raw stops for this candle
+            # Calculate highest/lowest over lookback period
+            if use_close:
+                highest = result.loc[result.index[start_idx:i+1], 'close'].max()
+                lowest = result.loc[result.index[start_idx:i+1], 'close'].min()
+            else:
+                highest = result.loc[result.index[start_idx:i+1], 'high'].max()
+                lowest = result.loc[result.index[start_idx:i+1], 'low'].min()
+            
+            # Calculate raw stops
             raw_long_stop = highest - curr_atr
             raw_short_stop = lowest + curr_atr
             
-            # Get previous values for calculations
-            prev_close = result.loc[result.index[i-1], 'close'] if i > 0 else result.loc[curr_idx, 'close']
-            curr_close = result.loc[curr_idx, 'close']
-            
-            # First candle after enough data - initialize values
-            if i == length:
+            # Get previous values
+            if i > 0:
+                prev_idx = result.index[i-1]
+                prev_close = result.loc[prev_idx, 'close']
+                curr_close = result.loc[curr_idx, 'close']
+                
+                # Get previous stops
+                if i > length and not pd.isna(result.loc[prev_idx, 'long_stop']):
+                    prev_long_stop = result.loc[prev_idx, 'long_stop']
+                    prev_short_stop = result.loc[prev_idx, 'short_stop']
+                    
+                    # Apply the exact PineScript logic
+                    # longStop := close[1] > longStopPrev ? math.max(longStop, longStopPrev) : longStop
+                    if prev_close > prev_long_stop:
+                        long_stop = max(raw_long_stop, prev_long_stop)
+                    else:
+                        long_stop = raw_long_stop
+                    
+                    # shortStop := close[1] < shortStopPrev ? math.min(shortStop, shortStopPrev) : shortStop
+                    if prev_close < prev_short_stop:
+                        short_stop = min(raw_short_stop, prev_short_stop)
+                    else:
+                        short_stop = raw_short_stop
+                    
+                    # Store calculated stops
+                    result.loc[curr_idx, 'long_stop'] = long_stop
+                    result.loc[curr_idx, 'short_stop'] = short_stop
+                    
+                    # Update direction
+                    # dir := close > shortStopPrev ? 1 : close < longStopPrev ? -1 : dir
+                    prev_dir = result.loc[prev_idx, 'dir']
+                    if curr_close > prev_short_stop:
+                        result.loc[curr_idx, 'dir'] = 1
+                    elif curr_close < prev_long_stop:
+                        result.loc[curr_idx, 'dir'] = -1
+                    else:
+                        result.loc[curr_idx, 'dir'] = prev_dir
+                else:
+                    # First calculation after enough data
+                    result.loc[curr_idx, 'long_stop'] = raw_long_stop
+                    result.loc[curr_idx, 'short_stop'] = raw_short_stop
+                    result.loc[curr_idx, 'dir'] = 1  # Default to long
+            else:
+                # Initialize first value
                 result.loc[curr_idx, 'long_stop'] = raw_long_stop
                 result.loc[curr_idx, 'short_stop'] = raw_short_stop
-                
-                # Initial direction
-                if curr_close > raw_short_stop:
-                    result.loc[curr_idx, 'dir'] = 1  # Long
-                elif curr_close < raw_long_stop:
-                    result.loc[curr_idx, 'dir'] = -1  # Short
-                else:
-                    result.loc[curr_idx, 'dir'] = 1  # Default to long
-                    
-            else:
-                # Get previous stops
-                prev_idx = result.index[i-1]
-                prev_long_stop = result.loc[prev_idx, 'long_stop']
-                prev_short_stop = result.loc[prev_idx, 'short_stop']
-                prev_dir = result.loc[prev_idx, 'dir']
-                
-                # Apply the TradingView logic exactly as in PineScript
-                # Adjust long stop - note we're using previous close
-                if prev_close > prev_long_stop:
-                    long_stop = max(raw_long_stop, prev_long_stop)
-                else:
-                    long_stop = raw_long_stop
-                    
-                # Adjust short stop
-                if prev_close < prev_short_stop:
-                    short_stop = min(raw_short_stop, prev_short_stop)
-                else:
-                    short_stop = raw_short_stop
-                
-                # Store adjusted stops
-                result.loc[curr_idx, 'long_stop'] = long_stop
-                result.loc[curr_idx, 'short_stop'] = short_stop
-                
-                # Determine direction - CURRENT close vs PREVIOUS stops
-                if curr_close > prev_short_stop:
-                    result.loc[curr_idx, 'dir'] = 1  # Long
-                elif curr_close < prev_long_stop:
-                    result.loc[curr_idx, 'dir'] = -1  # Short
-                else:
-                    result.loc[curr_idx, 'dir'] = prev_dir
+                result.loc[curr_idx, 'dir'] = 1  # Default to long
         
         # Generate buy/sell signals
         result['buy_signal'] = (result['dir'] == 1) & (result['dir'].shift(1) == -1)
         result['sell_signal'] = (result['dir'] == -1) & (result['dir'].shift(1) == 1)
         
-        # Clean up
+        # Clean up temporary columns
         result = result.drop(['tr1', 'tr2', 'tr3', 'tr'], axis=1, errors='ignore')
                 
         return result
