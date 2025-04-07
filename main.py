@@ -58,24 +58,52 @@ def fetch_historical_data(ticker: str, timeframe: str, start_date: datetime = No
             logger.info(f"start date: {start_date}")
             logger.info(f"end date: {end_date}")
         
-        logger.info(f"Fetching {ticker} {timeframe} data from {start_date} to {end_date}")
-        klines = client.get_klines(ticker, timeframe, start_date, end_date)
+        # Ensure both dates are timezone-aware
+        if start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=timezone.utc)
+        if end_date.tzinfo is None:
+            end_date = end_date.replace(tzinfo=timezone.utc)
         
-        if klines:
-            logger.info(f"Retrieved {len(klines)} candles for {ticker} {timeframe}")
-            # Save to database
-            db.save_klines(ticker, timeframe, klines)
-            logger.info(f"Saved {len(klines)} candles to database for {ticker} {timeframe}")
+        logger.info(f"Fetching {ticker} {timeframe} data from {start_date} to {end_date}")
+        
+        all_klines = []
+        current_start = start_date
+        
+        while current_start < end_date:
+            # Calculate the end time for this batch (1000 candles)
+            batch_end = current_start + timedelta(milliseconds=client._get_interval_ms(timeframe) * 1000)
+            if batch_end > end_date:
+                batch_end = end_date
+                
+            logger.info(f"Fetching batch from {current_start} to {batch_end}")
+            klines = client.get_klines(ticker, timeframe, current_start, batch_end)
             
+            if klines:
+                logger.info(f"Retrieved {len(klines)} candles for {ticker} {timeframe}")
+                all_klines.extend(klines)
+                
+                # Update current_start to the timestamp of the last candle + 1 interval
+                last_candle_time = datetime.fromtimestamp(klines[-1][0] / 1000, timezone.utc)
+                current_start = last_candle_time + timedelta(milliseconds=client._get_interval_ms(timeframe))
+                
+                # Save to database
+                db.save_klines(ticker, timeframe, klines)
+                logger.info(f"Saved {len(klines)} candles to database for {ticker} {timeframe}")
+            else:
+                logger.warning(f"No data found for {ticker} {timeframe} in batch {current_start} to {batch_end}")
+                break
+        
+        if all_klines:
             # Print first and last candle for verification
-            first_candle = klines[0]
-            last_candle = klines[-1]
-            logger.info(f"First candle: {datetime.utcfromtimestamp(first_candle[0]/1000)} - Open: {first_candle[1]}, Close: {first_candle[4]}")
-            logger.info(f"Last candle: {datetime.utcfromtimestamp(last_candle[0]/1000)} - Open: {last_candle[1]}, Close: {last_candle[4]}")
+            first_candle = all_klines[0]
+            last_candle = all_klines[-1]
+            logger.info(f"First candle: {datetime.utcfromtimestamp(first_candle[0]/1000).replace(tzinfo=timezone.utc)} - Open: {first_candle[1]}, Close: {first_candle[4]}")
+            logger.info(f"Last candle: {datetime.utcfromtimestamp(last_candle[0]/1000).replace(tzinfo=timezone.utc)} - Open: {last_candle[1]}, Close: {last_candle[4]}")
+            logger.info(f"Total candles fetched: {len(all_klines)}")
         else:
             logger.warning(f"No data found for {ticker} {timeframe}")
             
-        return klines
+        return all_klines
     except Exception as e:
         logger.error(f"Error fetching data for {ticker} {timeframe}: {str(e)}")
         raise
