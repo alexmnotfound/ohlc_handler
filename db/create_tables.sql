@@ -77,9 +77,8 @@ ON obv_data(ticker, timeframe);
 
 -- Add the pivot_data table if it doesn't exist yet
 CREATE TABLE IF NOT EXISTS pivot_data (
-    id SERIAL PRIMARY KEY,
-    ticker VARCHAR(30) NOT NULL,
-    timeframe VARCHAR(10) NOT NULL,
+    ticker TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
     timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     pp NUMERIC(20, 8) NOT NULL,
     r1 NUMERIC(20, 8) NOT NULL,
@@ -92,7 +91,7 @@ CREATE TABLE IF NOT EXISTS pivot_data (
     s3 NUMERIC(20, 8) NOT NULL,
     s4 NUMERIC(20, 8) NOT NULL,
     s5 NUMERIC(20, 8) NOT NULL,
-    CONSTRAINT pivot_data_unique UNIQUE (ticker, timeframe, timestamp)
+    PRIMARY KEY (ticker, timeframe, timestamp)
 );
 
 -- Add index for better performance on pivot lookups
@@ -101,9 +100,8 @@ ON pivot_data(ticker, timeframe);
 
 -- Add the ce_data table if it doesn't exist yet
 CREATE TABLE IF NOT EXISTS ce_data (
-    id SERIAL PRIMARY KEY,
-    ticker VARCHAR(30) NOT NULL,
-    timeframe VARCHAR(10) NOT NULL,
+    ticker TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
     timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     atr_period INTEGER NOT NULL,
     atr_multiplier NUMERIC(5, 2) NOT NULL,
@@ -113,7 +111,7 @@ CREATE TABLE IF NOT EXISTS ce_data (
     direction INTEGER NOT NULL,
     buy_signal BOOLEAN NOT NULL DEFAULT FALSE,
     sell_signal BOOLEAN NOT NULL DEFAULT FALSE,
-    CONSTRAINT ce_data_unique UNIQUE (ticker, timeframe, timestamp)
+    PRIMARY KEY (ticker, timeframe, timestamp)
 );
 
 -- Add index for better performance on chandelier exit lookups
