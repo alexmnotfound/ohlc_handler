@@ -1,6 +1,6 @@
 # Binance OHLCV Data Handler
 
-A Python microservice that fetches and stores OHLCV (Open, High, Low, Close, Volume) data from Binance's KLINES v3 API into a PostgreSQL database. The service supports multiple trading pairs and timeframes, with automatic updates of current candles.
+A Python microservice that fetches and stores OHLCV (Open, High, Low, Close, Volume) data from Binance's KLINES v3 API into a PostgreSQL database. The service supports multiple trading pairs and timeframes, with automatic updates of current candles and calculation of technical indicators.
 
 ## Features
 
@@ -8,6 +8,11 @@ A Python microservice that fetches and stores OHLCV (Open, High, Low, Close, Vol
 - Supports multiple trading pairs and timeframes
 - Automatically updates current (unclosed) candles
 - Stores data in PostgreSQL with UTC timestamps
+- Calculates and stores technical indicators:
+  - Exponential Moving Average (EMA)
+  - Relative Strength Index (RSI)
+  - On Balance Volume (OBV)
+  - Chandelier Exit (CE)
 - Configurable through environment variables and config files
 - Supports command-line arguments for flexible data retrieval
 
@@ -39,9 +44,15 @@ DB_USER=your_database_user
 DB_PASSWORD=your_database_password
 ```
 
+4. Set up a virtual environment (recommended):
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
 ## Database Setup
 
-Ensure your PostgreSQL database has the following table:
+Ensure your PostgreSQL database has the required tables. The database schema includes:
 
 ```sql
 CREATE TABLE ohlc_data (
@@ -57,6 +68,14 @@ CREATE TABLE ohlc_data (
     PRIMARY KEY (ticker, timeframe, timestamp)
 );
 ```
+
+Additional tables for technical indicators:
+- `ema_data` - For Exponential Moving Average values
+- `rsi_data` - For Relative Strength Index values
+- `obv_data` - For On Balance Volume values
+- `ce_data` - For Chandelier Exit values
+
+See the schema scripts in the `db` directory for complete database setup.
 
 ## Configuration
 
@@ -75,11 +94,13 @@ DB_PASSWORD=your_database_password
 2. Application Configuration (`config.py`):
 Used for application settings and defaults:
 - `TICKERS`: List of trading pairs to monitor (default: ['BTCUSDT', 'ETHUSDT'])
-- `TIMEFRAMES`: Dictionary of supported timeframes (default: '1h', '4h', '1d')
+- `TIMEFRAMES`: Dictionary of supported timeframes
 - `DEFAULT_START_DATE`: Default date to start fetching data if no data exists
-- Various technical indicator settings (EMA, RSI, etc.)
-
-The `.env` file is used for sensitive data that shouldn't be in version control, while `config.py` contains the application's configuration structure and default values.
+- Technical indicator settings:
+  - EMA periods
+  - RSI parameters
+  - OBV moving average type and period
+  - Chandelier Exit period and multiplier
 
 ## Usage
 
@@ -94,13 +115,16 @@ The script will:
 1. Check the last available data in the database for each pair/timeframe
 2. Fetch new data from that point onwards
 3. Update any existing candles (including the current one)
+4. Calculate technical indicators based on the configuration
 
 ### Command-line Arguments
 
-- `--symbol`: Specific trading pair (e.g., BTCUSDT)
+- `--symbol` or `--ticker`: Specific trading pair (e.g., BTCUSDT)
 - `--start`: Start date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)
 - `--end`: End date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)
-- `--interval`: Specific timeframe (e.g., 1h, 4h, 1d)
+- `--interval` or `--timeframe`: Specific timeframe (e.g., 1h, 4h, 1d)
+- `--skip-ohlc`: Skip fetching OHLC data and only calculate indicators
+- `--indicators`: Specify which indicators to calculate (comma-separated list, e.g., rsi,ema,obv,ce)
 
 Examples:
 
@@ -109,14 +133,67 @@ Examples:
 python main.py --symbol BTCUSDT --interval 1h
 ```
 
-2. Fetch data for a specific date range:
+2. Calculate all indicators for existing data (no new OHLC fetch):
 ```bash
-python main.py --symbol BTCUSDT --start "2024-01-01" --end "2024-01-07"
+python main.py --skip-ohlc
 ```
 
-3. Fetch all pairs for a specific timeframe:
+3. Calculate specific indicators only:
 ```bash
-python main.py --interval 4h
+python main.py --skip-ohlc --indicators rsi,ema
+```
+
+4. Calculate Chandelier Exit for specific ticker and timeframe:
+```bash
+python main.py --skip-ohlc --indicators ce --ticker BTCUSDT --timeframe 1h
+```
+
+## Technical Indicators
+
+### Exponential Moving Average (EMA)
+- Configurable periods in `config.py` (EMA_PERIODS)
+- Calculates EMA for close prices
+- Stored in `ema_data` table
+
+### Relative Strength Index (RSI)
+- Configurable period in `config.py` (RSI_PERIOD)
+- Stored in `rsi_data` table
+- Optional upper/lower bands for overbought/oversold conditions
+
+### On Balance Volume (OBV)
+- Measures buying and selling pressure
+- Can calculate moving averages on OBV values
+- Supports different MA types (None, SMA, EMA, SMA + Bollinger Bands)
+- Configurable period in `config.py` (OBV_MA_PERIOD)
+- Stored in `obv_data` table
+
+### Chandelier Exit (CE)
+- Volatility-based stop-loss indicator
+- Configurable period and multiplier in `config.py` (CE_PERIOD, CE_MULTIPLIER)
+- Provides long/short stops and direction signals
+- Stored in `ce_data` table
+- Implementation matches TradingView's PineScript formula
+
+## Scheduled Execution
+
+To run the script periodically, create a wrapper script and set up a crontab entry:
+
+1. Create a wrapper script `run_script.sh`:
+```bash
+#!/bin/bash
+cd /path/to/your/ohlc_handler
+source venv/bin/activate
+python main.py >> logs/cron.log 2>&1
+```
+
+2. Make it executable:
+```bash
+chmod +x run_script.sh
+```
+
+3. Add to crontab to run every hour:
+```
+0 * * * * /path/to/your/ohlc_handler/run_script.sh
 ```
 
 ## Data Management
@@ -127,6 +204,7 @@ python main.py --interval 4h
   - Starts from the last available candle in the database
   - Updates any existing candles with new data
   - Adds new candles as they become available
+- Technical indicators are calculated based on the latest available data
 
 ## Error Handling
 
@@ -136,6 +214,7 @@ The service includes comprehensive error handling for:
 - Data validation
 - Invalid date ranges
 - Unsupported timeframes
+- Insufficient data for technical indicators
 
 Errors are logged with appropriate context for debugging.
 
@@ -145,7 +224,7 @@ The service logs important information and errors to help track its operation:
 - Connection status
 - Data retrieval progress
 - Number of candles processed
-- First and last candle details
+- Technical indicator calculation details
 - Any errors or warnings
 
 ## Contributing
