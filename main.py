@@ -9,6 +9,7 @@ from indicators.rsi_calculator import RSICalculator
 from indicators.obv_calculator import OBVCalculator
 from indicators.pivot_calculator import PivotCalculator
 from indicators.ce_calculator import CECalculator
+from indicators.candle_pattern_calculator import CandlePatternCalculator
 
 # Configure logging
 logging.basicConfig(
@@ -148,7 +149,7 @@ def main():
     parser.add_argument('--timeframe', type=str, help='Time timeframe (e.g., 1h, 4h, 1d)')
     parser.add_argument('--skip-indicators', action='store_true', help='Skip indicator calculation')
     parser.add_argument('--indicators', type=str, 
-                        choices=['all', 'ema', 'rsi', 'obv', 'pivot', 'ce'], 
+                        choices=['all', 'ema', 'rsi', 'obv', 'pivot', 'ce', 'patterns'], 
                         default='all', 
                         help='Specify which indicators to calculate (default: all)')
     parser.add_argument('--skip-ohlc', action='store_true', help='Skip OHLC data fetching')
@@ -210,6 +211,12 @@ def main():
                         logger.info(f"Calculating Chandelier Exit for {ticker} {timeframe}")
                         ce_calculator = CECalculator()
                         ce_calculator.calculate_ce(ticker, timeframe)
+                    
+                    # Calculate Candle Patterns
+                    if args.indicators in ['all', 'patterns']:
+                        logger.info(f"Calculating Candle Patterns for {ticker} {timeframe}")
+                        pattern_calculator = CandlePatternCalculator()
+                        pattern_calculator.calculate_patterns(ticker, timeframe)
                         
             except Exception as e:
                 logger.error(f"Failed to process {ticker} {timeframe}: {str(e)}")

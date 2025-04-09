@@ -13,6 +13,8 @@ A Python microservice that fetches and stores OHLCV (Open, High, Low, Close, Vol
   - Relative Strength Index (RSI)
   - On Balance Volume (OBV)
   - Chandelier Exit (CE)
+  - Pivot Points (for monthly timeframe)
+  - Candlestick Patterns
 - Configurable through environment variables and config files
 - Supports command-line arguments for flexible data retrieval
 
@@ -54,6 +56,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 Ensure your PostgreSQL database has the required tables. The database schema includes:
 
+### Main OHLC Data Table
 ```sql
 CREATE TABLE ohlc_data (
     ticker text,
@@ -69,7 +72,7 @@ CREATE TABLE ohlc_data (
 );
 ```
 
-Additional tables for technical indicators:
+Additional tables for technical indicators (check create_tables.sql for schema):
 - `ema_data` - For Exponential Moving Average values
 - `rsi_data` - For Relative Strength Index values
 - `obv_data` - For On Balance Volume values
@@ -93,14 +96,35 @@ DB_PASSWORD=your_database_password
 
 2. Application Configuration (`config.py`):
 Used for application settings and defaults:
+
+### Market Configuration
 - `TICKERS`: List of trading pairs to monitor (default: ['BTCUSDT', 'ETHUSDT'])
-- `TIMEFRAMES`: Dictionary of supported timeframes
+- `TIMEFRAMES`: Dictionary of supported timeframes (default: 1h, 4h, 1d, 1w, 1M)
 - `DEFAULT_START_DATE`: Default date to start fetching data if no data exists
-- Technical indicator settings:
-  - EMA periods
-  - RSI parameters
-  - OBV moving average type and period
-  - Chandelier Exit period and multiplier
+
+### Technical Indicator Settings
+- EMA:
+  - `EMA_PERIODS`: List of periods to calculate (default: [11, 22, 50, 200])
+- RSI:
+  - `RSI_PERIOD`: Period for calculation (default: 14)
+  - `RSI_OVERBOUGHT`: Overbought threshold (default: 70)
+  - `RSI_OVERSOLD`: Oversold threshold (default: 30)
+- OBV:
+  - `OBV_MA_TYPE`: Moving average type (default: "SMA")
+  - `OBV_MA_PERIOD`: Period for moving average (default: 14)
+  - `OBV_BB_STD`: Standard deviation for Bollinger Bands (default: 2.0)
+- Chandelier Exit:
+  - `CE_PERIOD`: Period for calculation (default: 22)
+  - `CE_MULTIPLIER`: Multiplier for stop calculation (default: 3.0)
+- Pivot Points:
+  - `PIVOT_PERIOD`: Period for calculation (default: '1M')
+
+### API Configuration
+- `BASE_URL`: Binance API base URL (default: "https://api.binance.com")
+- `RATE_LIMIT`: Maximum requests per minute (default: 1200)
+- `REQUEST_TIMEOUT`: Request timeout in seconds (default: 10)
+- `MAX_RETRIES`: Maximum number of retry attempts (default: 3)
+- `RETRY_DELAY`: Delay between retries in seconds (default: 1)
 
 ## Usage
 
@@ -124,6 +148,7 @@ The script will:
 - `--end`: End date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)
 - `--interval` or `--timeframe`: Specific timeframe (e.g., 1h, 4h, 1d)
 - `--skip-ohlc`: Skip fetching OHLC data and only calculate indicators
+- `--skip-indicators`: Skip calculating indicators and only fetch OHLC data
 - `--indicators`: Specify which indicators to calculate (comma-separated list, e.g., rsi,ema,obv,ce)
 
 Examples:
@@ -146,6 +171,11 @@ python main.py --skip-ohlc --indicators rsi,ema
 4. Calculate Chandelier Exit for specific ticker and timeframe:
 ```bash
 python main.py --skip-ohlc --indicators ce --ticker BTCUSDT --timeframe 1h
+```
+
+5. Fetch OHLC data without calculating indicators:
+```bash
+python main.py --skip-indicators
 ```
 
 ## Technical Indicators
@@ -173,6 +203,34 @@ python main.py --skip-ohlc --indicators ce --ticker BTCUSDT --timeframe 1h
 - Provides long/short stops and direction signals
 - Stored in `ce_data` table
 - Implementation matches TradingView's PineScript formula
+
+### Pivot Points
+- Calculated for monthly timeframe only
+- Provides support and resistance levels
+- Stored in `pivot_data` table
+- Includes Pivot, R1-R3, and S1-S3 levels
+
+### Candlestick Patterns
+- Detects common Japanese candlestick patterns
+- Stored in the `candle_pattern` column of `ohlc_data` table
+- Detects the following patterns:
+  - Single Candle Patterns:
+    - Doji (small body, long wicks)
+    - Hammer (bullish reversal)
+    - Inverted Hammer (bullish reversal)
+    - Shooting Star (bearish reversal)
+    - Hanging Man (bearish reversal)
+    - Marubozu (strong trend)
+      - Bullish Marubozu
+      - Bearish Marubozu
+  - Two Candle Patterns:
+    - Bullish/Bearish Engulfing
+    - Bullish/Bearish Harami
+    - Tweezer Top/Bottom
+  - Three Candle Patterns:
+    - Morning Star (bullish reversal)
+    - Evening Star (bearish reversal)
+- Patterns are automatically calculated and stored with OHLC data
 
 ## Scheduled Execution
 
