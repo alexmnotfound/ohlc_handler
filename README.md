@@ -288,7 +288,3 @@ The service logs important information and errors to help track its operation:
 ## Contributing
 
 Feel free to submit issues, fork the repository, and create pull requests for any improvements.
-
-## License
-
-[Your License Here] 
