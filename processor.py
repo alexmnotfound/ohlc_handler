@@ -1,15 +1,16 @@
-from binance_client import BinanceClient
+from core import BinanceClient
 import logging
 from datetime import datetime, timezone, timedelta
 from config import market_config
 import argparse
-from db_handler import DBHandler
+from core import DBHandler
 from indicators.calculator import IndicatorCalculator
 from indicators.rsi_calculator import RSICalculator
 from indicators.obv_calculator import OBVCalculator
 from indicators.pivot_calculator import PivotCalculator
 from indicators.ce_calculator import CECalculator
 from indicators.candle_pattern_calculator import CandlePatternCalculator
+from typing import List, Optional
 
 # Configure logging
 logging.basicConfig(
@@ -28,120 +29,118 @@ def parse_date(date_str: str) -> datetime:
         except ValueError:
             raise ValueError("Date must be in format YYYY-MM-DD or YYYY-MM-DD HH:MM:SS")
 
-def fetch_historical_data(ticker: str, timeframe: str, start_date: datetime = None, end_date: datetime = None) -> list:
-    """Fetch historical klines data for a ticker and timeframe"""
+async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[List]:
+    """Fetch historical klines data for a given ticker and timeframe"""
     try:
-        client = BinanceClient()
+        # Initialize database handler
         db = DBHandler()
+        client = BinanceClient()
         
-        # If no start_date provided, get last candle date from DB or use default
-        if start_date is None:
-            last_date = db.get_last_candle_date(ticker, timeframe)
-            if last_date:
-                # If the last candle is from today, start from beginning of day
-                today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-                if last_date.date() == today.date():
-                    start_date = today
-                    logger.info(f"Last candle is from today, starting from beginning of day: {start_date}")
+        try:
+            # Get the last candle from database
+            last_candle = db.get_last_candle(ticker, timeframe)
+            
+            if last_candle:
+                last_timestamp = datetime.fromtimestamp(last_candle[0] / 1000, tz=timezone.utc)
+                logger.info(f"Last candle is from {last_timestamp}")
+                
+                # If last candle is from today, start from beginning of day
+                if last_timestamp.date() == datetime.now(timezone.utc).date():
+                    start_time = last_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+                    logger.info(f"Last candle is from today, starting from beginning of day: {start_time}")
                 else:
-                    # Start from the last candle (we'll replace it as it might have been incomplete)
-                    start_date = last_date
-                    logger.info(f"Using last available date from DB: {start_date}")
+                    start_time = last_timestamp
             else:
-                # Use default start date from config
-                start_date = market_config.DEFAULT_START_DATE
-                logger.info(f"No data found in DB, using default start date: {start_date}")
-        
-        # If no end_date provided, use current time
-        if end_date is None:
-            end_date = datetime.now(timezone.utc)
-            # Round up to the next hour to ensure we get all candles
-            if end_date.minute > 0 or end_date.second > 0 or end_date.microsecond > 0:
-                end_date = end_date.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-            # Add one interval to ensure we get the current incomplete candle
-            interval_ms = client._get_interval_ms(timeframe)
-            end_date = end_date + timedelta(milliseconds=interval_ms)
-        
-        # Ensure both dates are timezone-aware
-        if start_date.tzinfo is None:
-            start_date = start_date.replace(tzinfo=timezone.utc)
-        if end_date.tzinfo is None:
-            end_date = end_date.replace(tzinfo=timezone.utc)
-        
-        logger.info(f"Fetching {ticker} {timeframe} data from {start_date} to {end_date}")
-        
-        all_klines = []
-        
-        # Special handling for monthly timeframe
-        if timeframe == "1M":
-            # For monthly data, we need to fetch each month separately to ensure we get all data
-            current_date = start_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            
-            while current_date < end_date:
-                # Calculate next month
-                if current_date.month == 12:
-                    next_month = current_date.replace(year=current_date.year + 1, month=1)
+                # If no data exists, use start_date or default based on timeframe
+                if start_date:
+                    start_time = start_date
                 else:
-                    next_month = current_date.replace(month=current_date.month + 1)
-                
-                # Fetch data for this month
-                logger.info(f"Fetching monthly data for {ticker} for {current_date.year}-{current_date.month}")
-                klines = client.get_klines(ticker, timeframe, current_date, next_month)
-                
-                if klines:
-                    logger.info(f"Retrieved {len(klines)} candles for {ticker} {timeframe} for {current_date.year}-{current_date.month}")
-                    all_klines.extend(klines)
+                    now = datetime.now(timezone.utc)
+                    # Calculate minimum required candles for all indicators
+                    max_period = max(
+                        market_config.CE_PERIOD,  # Chandelier Exit
+                        max(market_config.EMA_PERIODS),  # EMA
+                        market_config.RSI_PERIOD,  # RSI
+                        market_config.OBV_MA_PERIOD,  # OBV
+                    )
                     
-                    # Save to database
-                    db.save_klines(ticker, timeframe, klines)
-                    logger.info(f"Saved {len(klines)} candles to database for {ticker} {timeframe}")
-                
-                # Move to next month regardless of whether we got data
-                current_date = next_month
-                
-                # Small delay to avoid rate limiting
-                import time
-                time.sleep(0.5)
-        else:
-            # Standard handling for non-monthly timeframes
-            current_start = start_date
+                    # Calculate minimum days needed based on timeframe
+                    if timeframe == '1h':
+                        min_days = max_period * 2  # At least 2x the period for hourly
+                    elif timeframe == '4h':
+                        min_days = max_period * 4  # At least 4x the period for 4h
+                    elif timeframe == '1d':
+                        min_days = max_period * 5  # At least 5x the period for daily
+                    elif timeframe == '1w':
+                        min_days = max_period * 8  # At least 8x the period for weekly
+                    elif timeframe == '1M':
+                        min_days = max_period * 3  # At least 3x the period for monthly
+                    else:
+                        min_days = max_period * 2  # Default to 2x the period
+                    
+                    start_time = now - timedelta(days=min_days)
+                logger.info(f"No existing data found, starting from {start_time}")
             
-            while current_start < end_date:
-                # Calculate the end time for this batch (1000 candles)
-                batch_end = current_start + timedelta(milliseconds=client._get_interval_ms(timeframe) * 1000)
-                if batch_end > end_date:
-                    batch_end = end_date
-                    
-                klines = client.get_klines(ticker, timeframe, current_start, batch_end)
+            # Use provided end_date or default to now
+            end_time = end_date if end_date else datetime.now(timezone.utc)
+            
+            # Fetch data in batches
+            all_candles = []
+            current_start = start_time
+            
+            while current_start < end_time:
+                # Calculate batch end time based on timeframe
+                if timeframe == '1h':
+                    batch_end = min(current_start + timedelta(hours=6), end_time)
+                elif timeframe == '4h':
+                    batch_end = min(current_start + timedelta(days=1), end_time)
+                elif timeframe == '1d':
+                    batch_end = min(current_start + timedelta(days=7), end_time)
+                elif timeframe == '1w':
+                    batch_end = min(current_start + timedelta(days=30), end_time)
+                elif timeframe == '1M':
+                    batch_end = min(current_start + timedelta(days=90), end_time)
+                else:
+                    batch_end = end_time
                 
-                if klines:
-                    logger.info(f"Retrieved {len(klines)} candles for {ticker} {timeframe}")
-                    all_klines.extend(klines)
-                    
-                    # Update current_start to the timestamp of the last candle + 1 interval
-                    last_candle_time = datetime.fromtimestamp(klines[-1][0] / 1000, timezone.utc)
-                    current_start = last_candle_time + timedelta(milliseconds=client._get_interval_ms(timeframe))
+                logger.info(f"Fetching {ticker} {timeframe} data from {current_start} to {batch_end}")
+                
+                # Fetch data from Binance
+                candles = await client.get_klines(
+                    symbol=ticker,
+                    interval=timeframe,
+                    start_time=current_start,
+                    end_time=batch_end
+                )
+                
+                if candles:
+                    logger.info(f"Retrieved {len(candles)} candles for {ticker} {timeframe}")
+                    all_candles.extend(candles)
                     
                     # Save to database
-                    db.save_klines(ticker, timeframe, klines)
-                    logger.info(f"Saved {len(klines)} candles to database for {ticker} {timeframe}")
+                    db.save_klines(ticker, timeframe, candles)
+                    logger.info(f"Saved {len(candles)} candles to database for {ticker} {timeframe}")
                 else:
                     logger.warning(f"No data found for {ticker} {timeframe} in batch {current_start} to {batch_end}")
-                    break
-        
-        logger.info(f"Total candles fetched: {len(all_klines)}")
-        if not all_klines:
-            logger.warning(f"No data found for {ticker} {timeframe}")
+                
+                # Move to next batch
+                current_start = batch_end
             
-        return all_klines
+            logger.info(f"Total candles fetched: {len(all_candles)}")
+            return all_candles
+            
+        finally:
+            # Close database connection
+            db.close()
+            # Close Binance client session
+            await client.close()
+            
     except Exception as e:
         logger.error(f"Error fetching data for {ticker} {timeframe}: {str(e)}")
         raise
-    finally:
-        client.close()
-        db.close()
 
-def main():
+def process_ohlc_data():
+    """CLI interface for processing OHLC data and calculating indicators"""
     parser = argparse.ArgumentParser(description='Fetch historical klines data from Binance')
     parser.add_argument('--ticker', type=str, help='Trading pair ticker (e.g., BTCUSDT)')
     parser.add_argument('--start', type=str, help='Start date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
@@ -223,4 +222,4 @@ def main():
                 continue
 
 if __name__ == "__main__":
-    main() 
+    process_ohlc_data() 

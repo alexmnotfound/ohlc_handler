@@ -1,21 +1,81 @@
-import requests
-from typing import List, Dict
+import aiohttp
+import logging
+from typing import List, Dict, Optional
 import time
 from datetime import datetime, timezone
-import logging
-from config import api_config
+from config import api_config, market_config
 
 logger = logging.getLogger(__name__)
 
 class BinanceClient:
     def __init__(self):
-        self.base_url = api_config.BASE_URL
+        self.base_url = "https://api.binance.com/api/v3"
+        self.session = None
         self.rate_limit = api_config.RATE_LIMIT
         self.request_timeout = api_config.REQUEST_TIMEOUT
         self.max_retries = api_config.MAX_RETRIES
         self.retry_delay = api_config.RETRY_DELAY
 
-    def get_klines(self, symbol: str, interval: str, start_time: datetime = None, end_time: datetime = None, limit: int = 1000) -> List[Dict]:
+    async def _ensure_session(self):
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+
+    def _get_interval_ms(self, interval: str) -> int:
+        """Convert interval string to milliseconds"""
+        if interval.endswith('h'):
+            return int(interval[:-1]) * 60 * 60 * 1000
+        elif interval.endswith('d'):
+            return int(interval[:-1]) * 24 * 60 * 60 * 1000
+        elif interval.endswith('w'):
+            return int(interval[:-1]) * 7 * 24 * 60 * 60 * 1000
+        elif interval == '1M':  # Monthly interval
+            return 30 * 24 * 60 * 60 * 1000  # Approximate month as 30 days
+        else:
+            raise ValueError(f"Invalid interval: {interval}")
+
+    async def get_klines(
+        self,
+        symbol: str,
+        interval: str,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 1000
+    ) -> List[List]:
+        """Get klines/candlestick data"""
+        try:
+            await self._ensure_session()
+            
+            params = {
+                'symbol': symbol,
+                'interval': interval,
+                'limit': limit
+            }
+            
+            if start_time:
+                params['startTime'] = int(start_time.timestamp() * 1000)
+            if end_time:
+                params['endTime'] = int(end_time.timestamp() * 1000)
+            
+            async with self.session.get(f"{self.base_url}/klines", params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data
+                else:
+                    error_text = await response.text()
+                    logger.error(f"Error fetching klines: {error_text}")
+                    return []
+                
+        except Exception as e:
+            logger.error(f"Error in get_klines: {str(e)}")
+            return []
+
+    async def close(self):
+        """Close the aiohttp session"""
+        if self.session:
+            await self.session.close()
+            self.session = None
+
+    def get_klines_sync(self, symbol: str, interval: str, start_time: datetime = None, end_time: datetime = None, limit: int = 1000) -> List[Dict]:
         """Fetch klines data from Binance API with optional date range"""
         endpoint = f"{self.base_url}/api/v3/klines"
         params = {
@@ -87,22 +147,4 @@ class BinanceClient:
             
             except Exception as e:
                 logger.error(f"Unexpected error fetching data for {symbol} {interval}")
-                raise
-
-    def _get_interval_ms(self, interval: str) -> int:
-        """Convert interval string to milliseconds."""
-        multipliers = {
-            'm': 60 * 1000,
-            'h': 60 * 60 * 1000,
-            'd': 24 * 60 * 60 * 1000,
-            'w': 7 * 24 * 60 * 60 * 1000
-        }
-        
-        unit = interval[-1]
-        number = int(interval[:-1])
-        
-        return number * multipliers[unit.lower()]
-
-    def close(self):
-        """Close the client connection"""
-        pass  # No persistent connection to close 
+                raise 

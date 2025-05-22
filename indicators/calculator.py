@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict
 import logging
-from db_handler import DBHandler
+from core import DBHandler
 from datetime import datetime, timezone
 from config import market_config
 

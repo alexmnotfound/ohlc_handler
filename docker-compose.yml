@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  ohlc-handler:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=mrcap_db
+      - DB_USER=postgres
+      - DB_PASSWORD=12341234
+    depends_on:
+      - postgres
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=mrcap_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=12341234
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  postgres_data: 

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import logging
-from db_handler import DBHandler
+from core import DBHandler
 from datetime import datetime
 from config import market_config
 
@@ -18,6 +18,14 @@ class CECalculator:
             data = self.db.get_klines(ticker, timeframe)
             if not data:
                 logger.warning(f"No data found for {ticker} {timeframe}")
+                return
+
+            # Check for minimum required candles
+            if len(data) < market_config.CE_PERIOD:
+                logger.warning(
+                    f"Not enough candles to calculate CE for {ticker} {timeframe}: "
+                    f"required {market_config.CE_PERIOD}, got {len(data)}"
+                )
                 return
 
             # Create DataFrame
@@ -155,8 +163,6 @@ class CECalculator:
                         result.loc[curr_idx, 'dir'] = 1
                     elif curr_close < prev_long_stop:
                         result.loc[curr_idx, 'dir'] = -1
-                    else:
-                        result.loc[curr_idx, 'dir'] = prev_dir
                 else:
                     # First calculation after enough data
                     result.loc[curr_idx, 'long_stop'] = raw_long_stop

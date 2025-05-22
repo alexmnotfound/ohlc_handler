@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import logging
-from db_handler import DBHandler
+from core import DBHandler
 from datetime import datetime
 from config import market_config
 

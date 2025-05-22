@@ -9,16 +9,47 @@ logger = logging.getLogger(__name__)
 
 class DBHandler:
     def __init__(self):
+        """Initialize database connection"""
         try:
-            self.conn = psycopg2.connect(db_config.connection_string)
+            self.conn = psycopg2.connect(
+                host=db_config.host,
+                port=db_config.port,
+                database=db_config.database,
+                user=db_config.user,
+                password=db_config.password
+            )
             self.cur = self.conn.cursor()
             logger.info(f"Successfully connected to PostgreSQL at {db_config.host}:{db_config.port}")
         except Exception as e:
-            logger.error(f"Failed to connect to PostgreSQL: {str(e)}")
+            logger.error(f"Error connecting to database: {str(e)}")
             raise
 
-    def get_last_candle_date(self, symbol: str, interval: str) -> Optional[datetime]:
-        """Get the last available candle date for a given symbol and timeframe"""
+    def get_last_candle(self, ticker: str, timeframe: str) -> Optional[tuple]:
+        """Get the last candle for a given ticker and timeframe"""
+        try:
+            self.cur.execute(
+                """
+                SELECT 
+                    EXTRACT(EPOCH FROM timestamp) * 1000 as timestamp_ms,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume
+                FROM ohlc_data 
+                WHERE ticker = %s AND timeframe = %s 
+                ORDER BY timestamp DESC 
+                LIMIT 1
+                """,
+                (ticker, timeframe)
+            )
+            return self.cur.fetchone()
+        except Exception as e:
+            logger.error(f"Error getting last candle: {str(e)}")
+            return None
+
+    def get_last_candle_date(self, ticker: str, timeframe: str) -> Optional[datetime]:
+        """Get the timestamp of the last candle for a given ticker and timeframe"""
         try:
             self.cur.execute(
                 """
@@ -28,26 +59,10 @@ class DBHandler:
                 ORDER BY timestamp DESC 
                 LIMIT 1
                 """,
-                (symbol, interval)
+                (ticker, timeframe)
             )
             result = self.cur.fetchone()
-            if result:
-                # Subtract one interval to ensure we get the last candle again
-                last_date = result[0]
-                if interval.endswith('h'):
-                    hours = int(interval[:-1])
-                    return last_date - timedelta(hours=hours)
-                elif interval.endswith('d'):
-                    days = int(interval[:-1])
-                    return last_date - timedelta(days=days)
-                elif interval.endswith('w'):
-                    weeks = int(interval[:-1])
-                    return last_date - timedelta(weeks=weeks)
-                elif interval.endswith('m'):
-                    # For monthly intervals, subtract 30 days
-                    months = int(interval[:-1])
-                    return last_date - timedelta(days=30*months)
-            return None
+            return result[0] if result else None
         except Exception as e:
             logger.error(f"Error getting last candle date: {str(e)}")
             return None
