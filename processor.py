@@ -44,12 +44,32 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
                 last_timestamp = datetime.fromtimestamp(last_candle[0] / 1000, tz=timezone.utc)
                 logger.info(f"Last candle is from {last_timestamp}")
                 
-                # If last candle is from today, start from beginning of day
-                if last_timestamp.date() == datetime.now(timezone.utc).date():
-                    start_time = last_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
-                    logger.info(f"Last candle is from today, starting from beginning of day: {start_time}")
+                # Calculate minimum required candles for all indicators
+                max_period = max(
+                    market_config.CE_PERIOD,  # Chandelier Exit
+                    max(market_config.EMA_PERIODS),  # EMA
+                    market_config.RSI_PERIOD,  # RSI
+                    market_config.OBV_MA_PERIOD,  # OBV
+                )
+                
+                # Calculate minimum days needed based on timeframe
+                if timeframe == '1h':
+                    min_days = max_period * 2  # At least 2x the period for hourly
+                elif timeframe == '4h':
+                    min_days = max_period * 4  # At least 4x the period for 4h
+                elif timeframe == '1d':
+                    min_days = max_period * 5  # At least 5x the period for daily
+                elif timeframe == '1w':
+                    min_days = max_period * 8  # At least 8x the period for weekly
+                elif timeframe == '1M':
+                    min_days = max_period * 3  # At least 3x the period for monthly
                 else:
-                    start_time = last_timestamp
+                    min_days = max_period * 2  # Default to 2x the period
+                
+                # Start from the earlier of: last candle or min_days ago
+                min_start = datetime.now(timezone.utc) - timedelta(days=min_days)
+                start_time = min(last_timestamp, min_start)
+                logger.info(f"Starting from {start_time} to ensure enough data for indicators")
             else:
                 # If no data exists, use start_date or default based on timeframe
                 if start_date:
@@ -91,7 +111,7 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
             while current_start < end_time:
                 # Calculate batch end time based on timeframe
                 if timeframe == '1h':
-                    batch_end = min(current_start + timedelta(hours=6), end_time)
+                    batch_end = min(current_start + timedelta(hours=24), end_time)
                 elif timeframe == '4h':
                     batch_end = min(current_start + timedelta(days=1), end_time)
                 elif timeframe == '1d':

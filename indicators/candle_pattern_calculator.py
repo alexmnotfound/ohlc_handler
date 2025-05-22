@@ -20,6 +20,13 @@ class CandlePatternCalculator:
                 logger.warning(f"No data found for {ticker} {timeframe}")
                 return
 
+            # Check for minimum required candles (at least 1 for single-candle patterns)
+            if len(data) < 1:
+                logger.warning(
+                    f"No candles available for pattern detection for {ticker} {timeframe}"
+                )
+                return
+
             # Convert to pandas DataFrame
             df = pd.DataFrame(data, columns=[
                 'timestamp', 'open', 'high', 'low', 'close', 'volume',
@@ -35,12 +42,14 @@ class CandlePatternCalculator:
             df['timestamp'] = pd.to_numeric(df['timestamp'])
 
             # Calculate patterns
-            df_with_patterns = self._calculate_patterns(df.copy())
+            df_with_patterns = self._calculate_patterns(df)
+            
+            # Save to database
             self._save_patterns(ticker, timeframe, df_with_patterns)
             logger.info(f"Calculated and saved candlestick patterns for {ticker} {timeframe}")
 
         except Exception as e:
-            logger.error(f"Error calculating patterns for {ticker} {timeframe}: {str(e)}")
+            logger.error(f"Error calculating candlestick patterns for {ticker} {timeframe}: {str(e)}")
             raise
         finally:
             self.db.close()
@@ -65,7 +74,7 @@ class CandlePatternCalculator:
         df['pattern'] = ''
 
         # Calculate patterns
-        for i in range(1, len(df)):
+        for i in range(len(df)):  # Start from 0 instead of 1
             # Single candle patterns
             if df.loc[i, 'is_doji']:
                 df.loc[i, 'pattern'] = 'Doji'
