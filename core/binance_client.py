@@ -52,13 +52,29 @@ class BinanceClient:
             }
             
             if start_time:
-                params['startTime'] = int(start_time.timestamp() * 1000)
-            if end_time:
-                params['endTime'] = int(end_time.timestamp() * 1000)
+                # Ensure start_time is in UTC
+                if start_time.tzinfo is None:
+                    start_time = start_time.replace(tzinfo=timezone.utc)
+                start_ms = int(start_time.timestamp() * 1000)
+                params['startTime'] = start_ms
             
+            if end_time:
+                # Ensure end_time is in UTC
+                if end_time.tzinfo is None:
+                    end_time = end_time.replace(tzinfo=timezone.utc)
+                end_ms = int(end_time.timestamp() * 1000)
+                params['endTime'] = end_ms
+            
+            logger.info(f"Making request to Binance API with params: {params}")
             async with self.session.get(f"{self.base_url}/klines", params=params) as response:
                 if response.status == 200:
                     data = await response.json()
+                    if data:
+                        # Log first and last candle timestamps from response
+                        first_candle_time = datetime.fromtimestamp(data[0][0] / 1000, tz=timezone.utc)
+                        last_candle_time = datetime.fromtimestamp(data[-1][0] / 1000, tz=timezone.utc)
+                        logger.info(f"Response first candle: {first_candle_time}")
+                        logger.info(f"Response last candle: {last_candle_time}")
                     return data
                 else:
                     error_text = await response.text()

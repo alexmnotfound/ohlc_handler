@@ -31,11 +31,11 @@ class RSICalculator:
             df['close'] = pd.to_numeric(df['close'])
             df['timestamp'] = pd.to_numeric(df['timestamp'])
 
-            # Calculate RSI for each configured period
-            for period in market_config.RSI_PERIODS:
-                df_with_rsi = self._calculate_rsi_values(df.copy(), period)
-                self._save_rsi_data(ticker, timeframe, df_with_rsi, period)
-                logger.info(f"Calculated and saved RSI with period {period} for {ticker} {timeframe}")
+            # Calculate RSI using the configured period
+            period = market_config.RSI_PERIOD
+            df_with_rsi = self._calculate_rsi_values(df.copy(), period)
+            self._save_rsi_data(ticker, timeframe, df_with_rsi, period)
+            logger.info(f"Calculated and saved RSI with period {period} for {ticker} {timeframe}")
 
         except Exception as e:
             logger.error(f"Error calculating RSI for {ticker} {timeframe}: {str(e)}")

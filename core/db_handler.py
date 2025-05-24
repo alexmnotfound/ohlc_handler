@@ -155,11 +155,10 @@ class DBHandler:
             self.conn.rollback()
             raise
 
-    def get_klines(self, symbol: str, interval: str) -> List[Dict]:
+    def get_klines(self, symbol: str, interval: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict]:
         """Get OHLC data from database for a given symbol and timeframe"""
         try:
-            self.cur.execute(
-                """
+            query = """
                 SELECT 
                     timestamp,  -- First get the actual timestamp for debugging
                     EXTRACT(EPOCH FROM timestamp) * 1000 as timestamp_ms,
@@ -176,10 +175,20 @@ class DBHandler:
                     '' as ignore
                 FROM ohlc_data 
                 WHERE ticker = %s AND timeframe = %s 
-                ORDER BY timestamp ASC
-                """,
-                (symbol, interval)
-            )
+            """
+            params = [symbol, interval]
+            
+            if start_date:
+                query += " AND timestamp >= %s"
+                params.append(start_date)
+            
+            if end_date:
+                query += " AND timestamp <= %s"
+                params.append(end_date)
+            
+            query += " ORDER BY timestamp ASC"
+            
+            self.cur.execute(query, params)
             
             # Convert to list of lists to match Binance API format
             results = self.cur.fetchall()
@@ -364,6 +373,203 @@ class DBHandler:
             logger.error(f"Error saving Chandelier Exit data: {str(e)}")
             self.conn.rollback()
             raise
+
+    def get_rsi_data(self, symbol: str, timeframe: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict]:
+        """Get RSI data from database for a given symbol and timeframe"""
+        try:
+            query = """
+                SELECT 
+                    EXTRACT(EPOCH FROM timestamp) * 1000 as timestamp_ms,
+                    period,
+                    value
+                FROM rsi_data 
+                WHERE ticker = %s AND timeframe = %s 
+            """
+            params = [symbol, timeframe]
+            
+            if start_date:
+                query += " AND timestamp >= %s"
+                params.append(start_date)
+            
+            if end_date:
+                query += " AND timestamp <= %s"
+                params.append(end_date)
+            
+            query += " ORDER BY timestamp ASC"
+            
+            self.cur.execute(query, params)
+            results = self.cur.fetchall()
+            
+            return [{
+                'timestamp': int(row[0]),
+                'period': row[1],
+                'value': float(row[2]) if row[2] is not None else None
+            } for row in results]
+        except Exception as e:
+            logger.error(f"Error fetching RSI data: {str(e)}")
+            return []
+
+    def get_ema_data(self, symbol: str, timeframe: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict]:
+        """Get EMA data from database for a given symbol and timeframe"""
+        try:
+            query = """
+                SELECT 
+                    EXTRACT(EPOCH FROM timestamp) * 1000 as timestamp_ms,
+                    period,
+                    value
+                FROM ema_data 
+                WHERE ticker = %s AND timeframe = %s 
+            """
+            params = [symbol, timeframe]
+            
+            if start_date:
+                query += " AND timestamp >= %s"
+                params.append(start_date)
+            
+            if end_date:
+                query += " AND timestamp <= %s"
+                params.append(end_date)
+            
+            query += " ORDER BY timestamp ASC"
+            
+            self.cur.execute(query, params)
+            results = self.cur.fetchall()
+            
+            return [{
+                'timestamp': int(row[0]),
+                'period': row[1],
+                'value': float(row[2]) if row[2] is not None else None
+            } for row in results]
+        except Exception as e:
+            logger.error(f"Error fetching EMA data: {str(e)}")
+            return []
+
+    def get_obv_data(self, symbol: str, timeframe: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict]:
+        """Get OBV data from database for a given symbol and timeframe"""
+        try:
+            query = """
+                SELECT 
+                    EXTRACT(EPOCH FROM timestamp) * 1000 as timestamp_ms,
+                    obv,
+                    ma_value,
+                    upper_band,
+                    lower_band
+                FROM obv_data 
+                WHERE ticker = %s AND timeframe = %s 
+            """
+            params = [symbol, timeframe]
+            
+            if start_date:
+                query += " AND timestamp >= %s"
+                params.append(start_date)
+            
+            if end_date:
+                query += " AND timestamp <= %s"
+                params.append(end_date)
+            
+            query += " ORDER BY timestamp ASC"
+            
+            self.cur.execute(query, params)
+            results = self.cur.fetchall()
+            
+            return [{
+                'timestamp': int(row[0]),
+                'obv': float(row[1]) if row[1] is not None else None,
+                'ma_value': float(row[2]) if row[2] is not None else None,
+                'upper_band': float(row[3]) if row[3] is not None else None,
+                'lower_band': float(row[4]) if row[4] is not None else None
+            } for row in results]
+        except Exception as e:
+            logger.error(f"Error fetching OBV data: {str(e)}")
+            return []
+
+    def get_ce_data(self, symbol: str, timeframe: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict]:
+        """Get Chandelier Exit data from database for a given symbol and timeframe"""
+        try:
+            query = """
+                SELECT 
+                    EXTRACT(EPOCH FROM timestamp) * 1000 as timestamp_ms,
+                    atr_value,
+                    long_stop,
+                    short_stop,
+                    direction,
+                    buy_signal,
+                    sell_signal
+                FROM ce_data 
+                WHERE ticker = %s AND timeframe = %s 
+            """
+            params = [symbol, timeframe]
+            
+            if start_date:
+                query += " AND timestamp >= %s"
+                params.append(start_date)
+            
+            if end_date:
+                query += " AND timestamp <= %s"
+                params.append(end_date)
+            
+            query += " ORDER BY timestamp ASC"
+            
+            self.cur.execute(query, params)
+            results = self.cur.fetchall()
+            
+            return [{
+                'timestamp': int(row[0]),
+                'atr_value': float(row[1]) if row[1] is not None else None,
+                'long_stop': float(row[2]) if row[2] is not None else None,
+                'short_stop': float(row[3]) if row[3] is not None else None,
+                'direction': row[4],
+                'buy_signal': row[5],
+                'sell_signal': row[6]
+            } for row in results]
+        except Exception as e:
+            logger.error(f"Error fetching Chandelier Exit data: {str(e)}")
+            return []
+
+    def get_pivot_data(self, symbol: str, timeframe: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict]:
+        """Get Pivot Points data from database for a given symbol and timeframe"""
+        try:
+            query = """
+                SELECT 
+                    EXTRACT(EPOCH FROM timestamp) * 1000 as timestamp_ms,
+                    pp,
+                    r1, r2, r3, r4, r5,
+                    s1, s2, s3, s4, s5
+                FROM pivot_data 
+                WHERE ticker = %s AND timeframe = %s 
+            """
+            params = [symbol, timeframe]
+            
+            if start_date:
+                query += " AND timestamp >= %s"
+                params.append(start_date)
+            
+            if end_date:
+                query += " AND timestamp <= %s"
+                params.append(end_date)
+            
+            query += " ORDER BY timestamp ASC"
+            
+            self.cur.execute(query, params)
+            results = self.cur.fetchall()
+            
+            return [{
+                'timestamp': int(row[0]),
+                'pp': float(row[1]) if row[1] is not None else None,
+                'r1': float(row[2]) if row[2] is not None else None,
+                'r2': float(row[3]) if row[3] is not None else None,
+                'r3': float(row[4]) if row[4] is not None else None,
+                'r4': float(row[5]) if row[5] is not None else None,
+                'r5': float(row[6]) if row[6] is not None else None,
+                's1': float(row[7]) if row[7] is not None else None,
+                's2': float(row[8]) if row[8] is not None else None,
+                's3': float(row[9]) if row[9] is not None else None,
+                's4': float(row[10]) if row[10] is not None else None,
+                's5': float(row[11]) if row[11] is not None else None
+            } for row in results]
+        except Exception as e:
+            logger.error(f"Error fetching Pivot Points data: {str(e)}")
+            return []
 
     def close(self):
         """Close the database connection"""

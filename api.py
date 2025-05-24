@@ -159,7 +159,8 @@ async def get_ohlc_data(
     symbol: str,
     timeframe: str,
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)"),
-    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)")
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)"),
+    limit: Optional[int] = Query(10, description="Number of candles to return (default: 10)")
 ):
     try:
         # Validate symbol
@@ -195,137 +196,136 @@ async def get_ohlc_data(
         # Get database handler
         db = DBHandler()
         try:
-            # Get OHLC data
-            klines = await fetch_historical_data(symbol, timeframe, start, end)
+            # Get OHLC data from database
+            klines = db.get_klines(symbol, timeframe, start, end)
+            if not klines:
+                return []
             
-            # Get all indicators for each candle
+            # Get indicators
+            indicators = {}
+            
+            # Get RSI data
+            rsi_data = db.get_rsi_data(symbol, timeframe, start, end)
+            if rsi_data:
+                indicators['rsi'] = rsi_data
+            
+            # Get EMA data
+            ema_data = db.get_ema_data(symbol, timeframe, start, end)
+            if ema_data:
+                indicators['ema'] = ema_data
+            
+            # Get OBV data
+            obv_data = db.get_obv_data(symbol, timeframe, start, end)
+            if obv_data:
+                indicators['obv'] = obv_data
+            
+            # Get Chandelier Exit data
+            ce_data = db.get_ce_data(symbol, timeframe, start, end)
+            if ce_data:
+                indicators['ce'] = ce_data
+            
+            # Always get monthly pivot points
+            # Calculate the start and end of the current month for pivot points
+            first_candle = datetime.fromtimestamp(klines[0][0] / 1000, tz=timezone.utc)
+            last_candle = datetime.fromtimestamp(klines[-1][0] / 1000, tz=timezone.utc)
+            
+            # Get the start of the month for the first candle
+            pivot_start = first_candle.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            # Get the end of the month for the last candle
+            if last_candle.month == 12:
+                pivot_end = last_candle.replace(year=last_candle.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            else:
+                pivot_end = last_candle.replace(month=last_candle.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            
+            logger.info(f"Fetching pivot points from {pivot_start} to {pivot_end}")
+            pivot_data = db.get_pivot_data(symbol, '1M', pivot_start, pivot_end)
+            logger.info(f"Fetched pivot data: {pivot_data}")
+            
+            if pivot_data:
+                # Create a dictionary of pivot points by month
+                monthly_pivots = {}
+                for pivot in pivot_data:
+                    # Convert timestamp to datetime
+                    dt = datetime.fromtimestamp(pivot['timestamp'] / 1000, tz=timezone.utc)
+                    # Use year and month as key
+                    month_key = (dt.year, dt.month)
+                    monthly_pivots[month_key] = pivot
+                    logger.info(f"Added pivot points for {dt.year}-{dt.month}: {pivot}")
+            
+            # Format response
             response = []
-            for kline in reversed(klines):  # Reverse t order to get newest first
-                timestamp = datetime.utcfromtimestamp(kline[0] / 1000)
+            # Take only the last 'limit' candles and reverse them to get newest first
+            for kline in reversed(klines[-limit:]):
+                timestamp = kline[0]
+                # Convert timestamp to datetime
+                dt = datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc)
                 
-                # Get EMA values
-                db.cur.execute(
-                    """
-                    SELECT period, value 
-                    FROM ema_data 
-                    WHERE ticker = %s AND timeframe = %s AND timestamp = %s
-                    """,
-                    (symbol, timeframe, timestamp)
-                )
-                ema_values = {f"ema_{row[0]}": float(row[1]) if row[1] is not None else None for row in db.cur.fetchall()}
-                
-                # Get RSI values
-                db.cur.execute(
-                    """
-                    SELECT period, value 
-                    FROM rsi_data 
-                    WHERE ticker = %s AND timeframe = %s AND timestamp = %s
-                    """,
-                    (symbol, timeframe, timestamp)
-                )
-                rsi_values = {f"rsi_{row[0]}": float(row[1]) if row[1] is not None else None for row in db.cur.fetchall()}
-                
-                # Get OBV values
-                db.cur.execute(
-                    """
-                    SELECT obv, ma_value, upper_band, lower_band
-                    FROM obv_data 
-                    WHERE ticker = %s AND timeframe = %s AND timestamp = %s
-                    """,
-                    (symbol, timeframe, timestamp)
-                )
-                obv_row = db.cur.fetchone()
-                obv_values = {
-                    "obv": float(obv_row[0]) if obv_row and obv_row[0] is not None else None,
-                    "obv_ma": float(obv_row[1]) if obv_row and obv_row[1] is not None else None,
-                    "obv_upper": float(obv_row[2]) if obv_row and obv_row[2] is not None else None,
-                    "obv_lower": float(obv_row[3]) if obv_row and obv_row[3] is not None else None
-                } if obv_row else {}
-                
-                # Get Pivot values
-                db.cur.execute(
-                    """
-                    SELECT pp, r1, r2, r3, r4, r5, s1, s2, s3, s4, s5
-                    FROM pivot_data 
-                    WHERE ticker = %s AND timeframe = %s AND timestamp = %s
-                    """,
-                    (symbol, timeframe, timestamp)
-                )
-                pivot_row = db.cur.fetchone()
-                pivot_values = {
-                    "pp": float(pivot_row[0]) if pivot_row and pivot_row[0] is not None else None,
-                    "r1": float(pivot_row[1]) if pivot_row and pivot_row[1] is not None else None,
-                    "r2": float(pivot_row[2]) if pivot_row and pivot_row[2] is not None else None,
-                    "r3": float(pivot_row[3]) if pivot_row and pivot_row[3] is not None else None,
-                    "r4": float(pivot_row[4]) if pivot_row and pivot_row[4] is not None else None,
-                    "r5": float(pivot_row[5]) if pivot_row and pivot_row[5] is not None else None,
-                    "s1": float(pivot_row[6]) if pivot_row and pivot_row[6] is not None else None,
-                    "s2": float(pivot_row[7]) if pivot_row and pivot_row[7] is not None else None,
-                    "s3": float(pivot_row[8]) if pivot_row and pivot_row[8] is not None else None,
-                    "s4": float(pivot_row[9]) if pivot_row and pivot_row[9] is not None else None,
-                    "s5": float(pivot_row[10]) if pivot_row and pivot_row[10] is not None else None
-                } if pivot_row else {}
-                
-                # Get CE values
-                db.cur.execute(
-                    """
-                    SELECT atr_value, long_stop, short_stop, direction, buy_signal, sell_signal
-                    FROM ce_data 
-                    WHERE ticker = %s AND timeframe = %s AND timestamp = %s
-                    """,
-                    (symbol, timeframe, timestamp)
-                )
-                ce_row = db.cur.fetchone()
-                ce_values = {
-                    "atr": float(ce_row[0]) if ce_row and ce_row[0] is not None else None,
-                    "long_stop": float(ce_row[1]) if ce_row and ce_row[1] is not None else None,
-                    "short_stop": float(ce_row[2]) if ce_row and ce_row[2] is not None else None,
-                    "direction": ce_row[3] if ce_row and ce_row[3] is not None else None,
-                    "buy_signal": ce_row[4] if ce_row and ce_row[4] is not None else None,
-                    "sell_signal": ce_row[5] if ce_row and ce_row[5] is not None else None
-                } if ce_row else {}
-                
-                # Get candle pattern
-                db.cur.execute(
-                    """
-                    SELECT candle_pattern
-                    FROM ohlc_data 
-                    WHERE ticker = %s AND timeframe = %s AND timestamp = %s
-                    """,
-                    (symbol, timeframe, timestamp)
-                )
-                pattern_row = db.cur.fetchone()
-                pattern = pattern_row[0] if pattern_row and pattern_row[0] is not None else None
-                
-                # Combine all data
                 candle_data = {
-                    "symbol": symbol,
-                    "timeframe": timeframe,
-                    "timestamp": kline[0],
-                    "datetime": timestamp.isoformat(),
-                    "open": float(kline[1]),
-                    "high": float(kline[2]),
-                    "low": float(kline[3]),
-                    "close": float(kline[4]),
-                    "volume": float(kline[5]),
-                    "indicators": {
-                        **ema_values,
-                        **rsi_values,
-                        **obv_values,
-                        **pivot_values,
-                        **ce_values,
-                        "pattern": pattern
-                    }
+                    'symbol': symbol,
+                    'timeframe': timeframe,
+                    'timestamp': timestamp,
+                    'datetime': dt.isoformat(),
+                    'open': float(kline[1]),
+                    'high': float(kline[2]),
+                    'low': float(kline[3]),
+                    'close': float(kline[4]),
+                    'volume': float(kline[5]),
+                    'indicators': {}
                 }
+                
+                # Always add monthly pivot for the candle's month if available
+                if 'monthly_pivots' in locals():
+                    month_key = (dt.year, dt.month)
+                    if month_key in monthly_pivots:
+                        pivot = monthly_pivots[month_key]
+                        candle_data['indicators']['pivot'] = {
+                            'pp': pivot['pp'],
+                            'r1': pivot['r1'],
+                            'r2': pivot['r2'],
+                            'r3': pivot['r3'],
+                            'r4': pivot['r4'],
+                            'r5': pivot['r5'],
+                            's1': pivot['s1'],
+                            's2': pivot['s2'],
+                            's3': pivot['s3'],
+                            's4': pivot['s4'],
+                            's5': pivot['s5']
+                        }
+                
+                # Add other indicators for this timestamp
+                for indicator_name, indicator_data in indicators.items():
+                    if indicator_name in ['rsi', 'ema', 'obv', 'ce']:
+                        for data_point in indicator_data:
+                            if data_point['timestamp'] == timestamp:
+                                if indicator_name not in candle_data['indicators']:
+                                    candle_data['indicators'][indicator_name] = {}
+                                if indicator_name in ['rsi', 'ema']:
+                                    candle_data['indicators'][indicator_name][str(data_point['period'])] = data_point['value']
+                                elif indicator_name == 'obv':
+                                    candle_data['indicators'][indicator_name] = {
+                                        'value': data_point['obv'],
+                                        'ma': data_point['ma_value'],
+                                        'upper_band': data_point['upper_band'],
+                                        'lower_band': data_point['lower_band']
+                                    }
+                                elif indicator_name == 'ce':
+                                    candle_data['indicators'][indicator_name] = {
+                                        'atr': data_point['atr_value'],
+                                        'long_stop': data_point['long_stop'],
+                                        'short_stop': data_point['short_stop'],
+                                        'direction': data_point['direction'],
+                                        'buy_signal': data_point['buy_signal'],
+                                        'sell_signal': data_point['sell_signal']
+                                    }
                 response.append(candle_data)
             
             return response
             
         finally:
             db.close()
-    
+            
     except Exception as e:
-        logger.error(f"Error fetching OHLC data with indicators: {str(e)}")
+        logger.error(f"Error fetching data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/update/{symbol}/{timeframe}")

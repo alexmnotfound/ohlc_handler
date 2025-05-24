@@ -41,9 +41,12 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
             last_candle = db.get_last_candle(ticker, timeframe)
             
             if last_candle:
-                last_timestamp = datetime.fromtimestamp(last_candle[0] / 1000, tz=timezone.utc)
-                logger.info(f"Last candle is from {last_timestamp}")
+                # Debug logging for raw timestamp
+                raw_timestamp = last_candle[0]
+                logger.info(f"Raw timestamp from last candle: {raw_timestamp}")
                 
+                # Convert timestamp to UTC datetime
+                last_timestamp = datetime.fromtimestamp(raw_timestamp / 1000, tz=timezone.utc)
                 # Calculate minimum required candles for all indicators
                 max_period = max(
                     market_config.CE_PERIOD,  # Chandelier Exit
@@ -54,33 +57,31 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
                 
                 # Calculate minimum days needed based on timeframe
                 if timeframe == '1h':
-                    min_days = max_period * 2  # At least 2x the period for hourly
+                    min_days = 7  
                 elif timeframe == '4h':
-                    min_days = max_period * 4  # At least 4x the period for 4h
+                    min_days = 14 
                 elif timeframe == '1d':
-                    min_days = max_period * 5  # At least 5x the period for daily
+                    min_days = 30 
                 elif timeframe == '1w':
-                    min_days = max_period * 8  # At least 8x the period for weekly
+                    min_days = 60 
                 elif timeframe == '1M':
-                    min_days = max_period * 3  # At least 3x the period for monthly
+                    min_days = 90 
                 else:
-                    min_days = max_period * 2  # Default to 2x the period
+                    min_days = 7  # Default to 7 days
                 
-                # Start from the earlier of: last candle or min_days ago
-                min_start = datetime.now(timezone.utc) - timedelta(days=min_days)
-                start_time = min(last_timestamp, min_start)
-                logger.info(f"Starting from {start_time} to ensure enough data for indicators")
+                # Start from min_days before the last candle
+                start_time = last_timestamp - timedelta(days=min_days)
             else:
-                # If no data exists, use start_date or default based on timeframe
+                # If no data exists, use start_date or default to 30 days ago
                 if start_date:
-                    start_time = start_date
+                    start_time = start_date.replace(tzinfo=timezone.utc)
                 else:
-                    # Default to January 1st, 2024 if no data exists
-                    start_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+                    # Default to 30 days ago if no data exists
+                    start_time = datetime.now(timezone.utc) - timedelta(days=30)
                     logger.info(f"No existing data found, using default start date: {start_time}")
             
             # Use provided end_date or default to now
-            end_time = end_date if end_date else datetime.now(timezone.utc)
+            end_time = end_date.replace(tzinfo=timezone.utc) if end_date else datetime.now(timezone.utc)
             
             # Fetch data in batches
             all_candles = []
@@ -113,6 +114,12 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
                 
                 if candles:
                     logger.info(f"Retrieved {len(candles)} candles for {ticker} {timeframe}")
+                    # Log first and last candle timestamps from the batch
+                    if len(candles) > 0:
+                        first_candle_time = datetime.fromtimestamp(candles[0][0] / 1000, tz=timezone.utc)
+                        last_candle_time = datetime.fromtimestamp(candles[-1][0] / 1000, tz=timezone.utc)
+                        logger.info(f"First candle in batch: {first_candle_time}")
+                        logger.info(f"Last candle in batch: {last_candle_time}")
                     all_candles.extend(candles)
                     
                     # Save to database
