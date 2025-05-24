@@ -136,15 +136,7 @@ async def shutdown_event():
 
 @app.get("/")
 async def root():
-    # Debug environment variables
-    env_vars = {
-        "DB_HOST": os.getenv("DB_HOST"),
-        "DB_PORT": os.getenv("DB_PORT"),
-        "DB_NAME": os.getenv("DB_NAME"),
-        "DB_USER": os.getenv("DB_USER"),
-        "DB_PASSWORD": "***"  # Don't expose password
-    }
-    return {"message": "OHLC Handler API is running", "env_vars": env_vars}
+    return {"message": "OHLC Handler API is running"}
 
 @app.get("/status")
 def status():
