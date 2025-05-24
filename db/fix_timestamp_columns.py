@@ -12,12 +12,12 @@ import sys
 
 # Add parent directory to path so we can import config
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import db_config
+from config import db_config, logging_config
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=getattr(logging, logging_config.LEVEL),
+    format=logging_config.FORMAT
 )
 logger = logging.getLogger(__name__)
 

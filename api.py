@@ -3,8 +3,11 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from pydantic import BaseModel
 import logging
+import os
+import psycopg2
+from dotenv import load_dotenv
 from processor import fetch_historical_data
-from config import market_config
+from config import market_config, logging_config
 from core import DBHandler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -15,10 +18,13 @@ from indicators.pivot_calculator import PivotCalculator
 from indicators.ce_calculator import CECalculator
 from indicators.candle_pattern_calculator import CandlePatternCalculator
 
+# Load environment variables from .env file
+load_dotenv()
+
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=getattr(logging, logging_config.LEVEL),
+    format=logging_config.FORMAT
 )
 logger = logging.getLogger(__name__)
 
@@ -56,6 +62,26 @@ async def update_all_data():
     except Exception as e:
         logger.error(f"Error in periodic update: {str(e)}")
 
+@app.on_event("startup")
+def check_db_connection():
+    try:
+        # Debug log the environment variables (without password)
+        logger.info(f"Attempting database connection with: host={os.getenv('DB_HOST')}, port={os.getenv('DB_PORT')}, dbname={os.getenv('DB_NAME')}, user={os.getenv('DB_USER')}")
+        
+        conn = psycopg2.connect(
+            dbname=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            host=os.getenv("DB_HOST"),
+            port=os.getenv("DB_PORT", 5432),
+            connect_timeout=3
+        )
+        conn.close()
+        logger.info("Database connection successful")
+    except Exception as e:
+        logger.error(f"Database connection failed: {e}")
+        # Optionally, you can raise an HTTPException here
+        # raise HTTPException(status_code=503, detail="Database connection failed")
 
 @app.on_event("startup")
 async def startup_event():
@@ -110,11 +136,31 @@ async def shutdown_event():
 
 @app.get("/")
 async def root():
-    return {"message": "OHLC Handler API is running"}
+    # Debug environment variables
+    env_vars = {
+        "DB_HOST": os.getenv("DB_HOST"),
+        "DB_PORT": os.getenv("DB_PORT"),
+        "DB_NAME": os.getenv("DB_NAME"),
+        "DB_USER": os.getenv("DB_USER"),
+        "DB_PASSWORD": "***"  # Don't expose password
+    }
+    return {"message": "OHLC Handler API is running", "env_vars": env_vars}
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+@app.get("/status")
+def status():
+    try:
+        conn = psycopg2.connect(
+            dbname=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            host=os.getenv("DB_HOST"),
+            port=os.getenv("DB_PORT", 5432),
+            connect_timeout=3
+        )
+        conn.close()
+        return {"status": "ok", "db": "connected"}
+    except Exception as e:
+        return {"status": "error", "db": "not connected", "detail": str(e)}
 
 @app.get("/ohlc/{symbol}/{timeframe}")
 async def get_ohlc_data(
@@ -162,7 +208,7 @@ async def get_ohlc_data(
             
             # Get all indicators for each candle
             response = []
-            for kline in reversed(klines):  # Reverse the order to get newest first
+            for kline in reversed(klines):  # Reverse t order to get newest first
                 timestamp = datetime.utcfromtimestamp(kline[0] / 1000)
                 
                 # Get EMA values

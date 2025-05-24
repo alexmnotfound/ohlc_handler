@@ -1,7 +1,7 @@
 from core import BinanceClient
 import logging
 from datetime import datetime, timezone, timedelta
-from config import market_config
+from config import market_config, logging_config
 import argparse
 from core import DBHandler
 from indicators.calculator import IndicatorCalculator
@@ -14,8 +14,8 @@ from typing import List, Optional
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=getattr(logging, logging_config.LEVEL),
+    format=logging_config.FORMAT
 )
 logger = logging.getLogger(__name__)
 
@@ -75,31 +75,9 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
                 if start_date:
                     start_time = start_date
                 else:
-                    now = datetime.now(timezone.utc)
-                    # Calculate minimum required candles for all indicators
-                    max_period = max(
-                        market_config.CE_PERIOD,  # Chandelier Exit
-                        max(market_config.EMA_PERIODS),  # EMA
-                        market_config.RSI_PERIOD,  # RSI
-                        market_config.OBV_MA_PERIOD,  # OBV
-                    )
-                    
-                    # Calculate minimum days needed based on timeframe
-                    if timeframe == '1h':
-                        min_days = max_period * 2  # At least 2x the period for hourly
-                    elif timeframe == '4h':
-                        min_days = max_period * 4  # At least 4x the period for 4h
-                    elif timeframe == '1d':
-                        min_days = max_period * 5  # At least 5x the period for daily
-                    elif timeframe == '1w':
-                        min_days = max_period * 8  # At least 8x the period for weekly
-                    elif timeframe == '1M':
-                        min_days = max_period * 3  # At least 3x the period for monthly
-                    else:
-                        min_days = max_period * 2  # Default to 2x the period
-                    
-                    start_time = now - timedelta(days=min_days)
-                logger.info(f"No existing data found, starting from {start_time}")
+                    # Default to January 1st, 2024 if no data exists
+                    start_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+                    logger.info(f"No existing data found, using default start date: {start_time}")
             
             # Use provided end_date or default to now
             end_time = end_date if end_date else datetime.now(timezone.utc)
@@ -113,9 +91,9 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
                 if timeframe == '1h':
                     batch_end = min(current_start + timedelta(hours=24), end_time)
                 elif timeframe == '4h':
-                    batch_end = min(current_start + timedelta(days=1), end_time)
+                    batch_end = min(current_start + timedelta(days=24), end_time)
                 elif timeframe == '1d':
-                    batch_end = min(current_start + timedelta(days=7), end_time)
+                    batch_end = min(current_start + timedelta(days=24), end_time)
                 elif timeframe == '1w':
                     batch_end = min(current_start + timedelta(days=30), end_time)
                 elif timeframe == '1M':
