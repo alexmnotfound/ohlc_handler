@@ -54,7 +54,7 @@ cp .env_example .env
 
 0. Set up postgres:
 ```bash
-  docker run --name local-postgres -e POSTGRES_DB=ohlc_data -e POSTGRES_USER=your_db_user -e POSTGRES_PASSWORD=your_db_password -p 5432:5432 -d postgres
+  docker run --name local-postgres -e POSTGRES_DB=your_db_name -e POSTGRES_USER=your_db_user -e POSTGRES_PASSWORD=your_db_password -p 5432:5432 -d postgres
 ```
 
 1. Clone the repository:
