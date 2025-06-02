@@ -135,24 +135,86 @@ The service fetches data in batches to optimize API usage and memory management:
 ### Data Management
 
 - `GET /ohlc/{symbol}/{timeframe}`: Get OHLC data
+  ```bash
+  # Get last 10 candles for BTCUSDT on 1h timeframe
+  curl "http://localhost:8000/ohlc/BTCUSDT/1h"
+  
+  # Get candles with date range and limit
+  curl "http://localhost:8000/ohlc/BTCUSDT/1h?start_date=2024-03-01&end_date=2024-03-15&limit=100"
+  ```
+
 - `POST /update/{symbol}/{timeframe}`: Update OHLC data
+  ```bash
+  # Update BTCUSDT data for 1h timeframe
+  curl -X POST "http://localhost:8000/update/BTCUSDT/1h"
+  
+  # Update without calculating indicators
+  curl -X POST "http://localhost:8000/update/BTCUSDT/1h?calculate_indicators=false"
+  ```
+
 - `GET /status`: Get service status
+  ```bash
+  # Check service and database status
+  curl "http://localhost:8000/status"
+  ```
 
-### Technical Indicators
+### Example Responses
 
-- `GET /indicators/{symbol}/{timeframe}`: Get all indicators
-- `GET /indicators/{symbol}/{timeframe}/{indicator}`: Get specific indicator
-
-## Automatic Updates
-
-The service automatically updates data at regular intervals:
-
-- 1h timeframe: Every 5 minutes
-- 4h timeframe: Every 15 minutes
-- 1d timeframe: Every hour
-- 1w timeframe: Every 6 hours
-- 1M timeframe: Every 24 hours
-
+#### OHLC Data Response
+```json
+[
+  {
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "timestamp": 1710000000000,
+    "datetime": "2024-03-10T12:00:00+00:00",
+    "open": 68500.50,
+    "high": 68700.25,
+    "low": 68400.75,
+    "close": 68650.00,
+    "volume": 125.45,
+    "indicators": {
+      "rsi": {
+        "14": 65.23
+      },
+      "ema": {
+        "9": 68500.25,
+        "20": 68450.75,
+        "50": 68300.50,
+        "100": 68100.25,
+        "200": 67800.00
+      },
+      "obv": {
+        "value": 1250000.45,
+        "ma": 1245000.75,
+        "upper_band": 1260000.25,
+        "lower_band": 1230000.50
+      },
+      "ce": {
+        "atr": 250.75,
+        "long_stop": 68300.25,
+        "short_stop": 68800.50,
+        "direction": "long",
+        "buy_signal": true,
+        "sell_signal": false
+      },
+      "pivot": {
+        "pp": 68500.00,
+        "r1": 68800.00,
+        "r2": 69100.00,
+        "r3": 69400.00,
+        "r4": 69700.00,
+        "r5": 70000.00,
+        "s1": 68200.00,
+        "s2": 67900.00,
+        "s3": 67600.00,
+        "s4": 67300.00,
+        "s5": 67000.00
+      }
+    }
+  }
+]
+```
 
 ## Contributing
 

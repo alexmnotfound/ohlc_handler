@@ -9,8 +9,6 @@ from dotenv import load_dotenv
 from processor import fetch_historical_data
 from config import market_config, logging_config
 from core import DBHandler
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
 from indicators.calculator import IndicatorCalculator
 from indicators.rsi_calculator import RSICalculator
 from indicators.obv_calculator import OBVCalculator
@@ -34,9 +32,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Initialize scheduler
-scheduler = AsyncIOScheduler()
-
 class OHLCResponse(BaseModel):
     symbol: str
     timeframe: str
@@ -47,20 +42,6 @@ class OHLCResponse(BaseModel):
     close: float
     volume: float
     indicators: dict
-
-async def update_all_data():
-    """Background task to update all data periodically"""
-    logger.info("Starting periodic data update")
-    try:
-        for ticker in market_config.TICKERS:
-            for timeframe in market_config.TIMEFRAMES:
-                try:
-                    await fetch_historical_data(ticker, timeframe)
-                    logger.info(f"Updated {ticker} {timeframe}")
-                except Exception as e:
-                    logger.error(f"Error updating {ticker} {timeframe}: {str(e)}")
-    except Exception as e:
-        logger.error(f"Error in periodic update: {str(e)}")
 
 @app.on_event("startup")
 def check_db_connection():
@@ -80,59 +61,6 @@ def check_db_connection():
         logger.info("Database connection successful")
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
-        # Optionally, you can raise an HTTPException here
-        # raise HTTPException(status_code=503, detail="Database connection failed")
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize scheduler and start background tasks on startup"""
-    # Schedule updates based on timeframes
-    for timeframe in market_config.TIMEFRAMES:
-        if timeframe == '1h':
-            # Update hourly data every 5 minutes
-            scheduler.add_job(
-                update_all_data,
-                CronTrigger(minute='*/5'),
-                id=f'update_{timeframe}'
-            )
-        elif timeframe == '4h':
-            # Update 4h data every 15 minutes
-            scheduler.add_job(
-                update_all_data,
-                CronTrigger(minute='*/15'),
-                id=f'update_{timeframe}'
-            )
-        elif timeframe == '1d':
-            # Update daily data every hour
-            scheduler.add_job(
-                update_all_data,
-                CronTrigger(minute='0'),
-                id=f'update_{timeframe}'
-            )
-        elif timeframe == '1w':
-            # Update weekly data every 6 hours
-            scheduler.add_job(
-                update_all_data,
-                CronTrigger(hour='*/6'),
-                id=f'update_{timeframe}'
-            )
-        elif timeframe == '1M':
-            # Update monthly data once a day
-            scheduler.add_job(
-                update_all_data,
-                CronTrigger(hour='0', minute='0'),
-                id=f'update_{timeframe}'
-            )
-    
-    # Start the scheduler
-    scheduler.start()
-    logger.info("Scheduler started")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Shutdown scheduler on application shutdown"""
-    scheduler.shutdown()
-    logger.info("Scheduler shut down")
 
 @app.get("/")
 async def root():
