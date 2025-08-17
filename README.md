@@ -210,7 +210,8 @@ The service fetches data in batches to optimize API usage and memory management:
         "s3": 67600.00,
         "s4": 67300.00,
         "s5": 67000.00
-      }
+      },
+      "pattern": "Bullish Engulfing"
     }
   }
 ]

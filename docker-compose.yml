@@ -6,28 +6,29 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DB_HOST=postgres
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
-    depends_on:
-      - postgres
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
-  postgres:
-    image: postgres:latest
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
+# Comentamos el servicio postgres ya que usaremos la instancia local
+#  postgres:
+#    image: postgres:latest
+#    environment:
+#      POSTGRES_DB: ${DB_NAME}
+#      POSTGRES_USER: ${DB_USER}
+#      POSTGRES_PASSWORD: ${DB_PASSWORD}
+#    volumes:
+#      - postgres_data:/var/lib/postgresql/data
+#    ports:
+#      - "5432:5432"
+#    restart: unless-stopped
 
-volumes:
-  postgres_data: 
+# volumes:
+#   postgres_data: 

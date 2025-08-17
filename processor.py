@@ -44,9 +44,12 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
                 # Debug logging for raw timestamp
                 raw_timestamp = last_candle[0]
                 logger.info(f"Raw timestamp from last candle: {raw_timestamp}")
+                logger.info(f"Raw timestamp type: {type(raw_timestamp)}")
                 
-                # Convert timestamp to UTC datetime
-                last_timestamp = datetime.fromtimestamp(raw_timestamp / 1000, tz=timezone.utc)
+                # Convert timestamp to UTC datetime - ensure it's an integer
+                timestamp_ms = int(raw_timestamp)
+                logger.info(f"Converted timestamp_ms: {timestamp_ms}")
+                last_timestamp = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
                 # Calculate minimum required candles for all indicators
                 max_period = max(
                     market_config.CE_PERIOD,  # Chandelier Exit

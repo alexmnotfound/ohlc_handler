@@ -152,6 +152,11 @@ async def get_ohlc_data(
             if ce_data:
                 indicators['ce'] = ce_data
             
+            # Get candle pattern data
+            pattern_data = db.get_candle_pattern_data(symbol, timeframe, start, end)
+            if pattern_data:
+                indicators['pattern'] = pattern_data
+            
             # Always get monthly pivot points
             # Calculate the start and end of the current month for pivot points
             first_candle = datetime.fromtimestamp(klines[0][0] / 1000, tz=timezone.utc)
@@ -222,7 +227,7 @@ async def get_ohlc_data(
                 
                 # Add other indicators for this timestamp
                 for indicator_name, indicator_data in indicators.items():
-                    if indicator_name in ['rsi', 'ema', 'obv', 'ce']:
+                    if indicator_name in ['rsi', 'ema', 'obv', 'ce', 'pattern']:
                         for data_point in indicator_data:
                             if data_point['timestamp'] == timestamp:
                                 if indicator_name not in candle_data['indicators']:
@@ -245,6 +250,8 @@ async def get_ohlc_data(
                                         'buy_signal': data_point['buy_signal'],
                                         'sell_signal': data_point['sell_signal']
                                     }
+                                elif indicator_name == 'pattern':
+                                    candle_data['indicators'][indicator_name] = data_point['pattern']
                 response.append(candle_data)
             
             return response
