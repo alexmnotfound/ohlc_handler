@@ -22,7 +22,7 @@ class MarketConfig:
 
     # Technical Indicator Settings
     # EMA periods
-    EMA_PERIODS: List[int] = field(default_factory=lambda: [9, 20, 50, 100, 200])
+    EMA_PERIODS: List[int] = field(default_factory=lambda: [11, 22, 50, 200])
 
     # RSI settings
     RSI_PERIOD: int = 14
@@ -43,11 +43,11 @@ class MarketConfig:
 
     # Batch sizes for data fetching (in hours)
     BATCH_SIZES: Dict[str, int] = field(default_factory=lambda: {
-        '1h': 24,    # 24 hours = 24 candles
-        '4h': 24,    # 24 hours = 6 candles
-        '1d': 168,   # 7 days = 7 candles
-        '1w': 720,   # 30 days = 4-5 candles
-        '1M': 2160   # 90 days = 3 candles
+        '1h': 24,      # 24 hours = 24 candles
+        '4h': 24,      # 24 hours = 6 candles
+        '1d': 168,     # 7 days = 7 candles
+        '1w': 87000,   # ~10 years = ~522 candles
+        '1M': 87000    # ~10 years = ~120 candles
     })
 
     # Update intervals (in minutes)

@@ -19,6 +19,8 @@ class DBHandler:
                 password=db_config.password
             )
             self.cur = self.conn.cursor()
+            # Set autocommit to False to handle transactions manually
+            self.conn.autocommit = False
             logger.info(f"Successfully connected to PostgreSQL at {db_config.host}:{db_config.port}")
         except Exception as e:
             logger.error(f"Error connecting to database: {str(e)}")
@@ -46,6 +48,8 @@ class DBHandler:
             return self.cur.fetchone()
         except Exception as e:
             logger.error(f"Error getting last candle: {str(e)}")
+            # Rollback on error to prevent transaction issues
+            self.rollback()
             return None
 
     def get_last_candle_date(self, ticker: str, timeframe: str) -> Optional[datetime]:
@@ -65,6 +69,8 @@ class DBHandler:
             return result[0] if result else None
         except Exception as e:
             logger.error(f"Error getting last candle date: {str(e)}")
+            # Rollback on error to prevent transaction issues
+            self.rollback()
             return None
 
     def save_klines(self, symbol: str, interval: str, klines_data: List[Dict]):
@@ -620,9 +626,21 @@ class DBHandler:
             logger.error(f"Error fetching candle pattern data: {str(e)}")
             return []
 
+    def rollback(self):
+        """Rollback the current transaction"""
+        try:
+            self.conn.rollback()
+            logger.info("Transaction rolled back successfully")
+        except Exception as e:
+            logger.error(f"Error rolling back transaction: {str(e)}")
+            raise
+
     def close(self):
         """Close the database connection"""
         try:
+            # Rollback any pending transaction before closing
+            if not self.conn.closed:
+                self.conn.rollback()
             self.cur.close()
             self.conn.close()
             logger.info("Database connection closed")

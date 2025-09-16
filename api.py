@@ -140,7 +140,12 @@ async def get_ohlc_data(
             # Get EMA data
             ema_data = db.get_ema_data(symbol, timeframe, start, end)
             if ema_data:
-                indicators['ema'] = ema_data
+                # Filter EMA data to only include configured periods
+                filtered_ema_data = [
+                    data_point for data_point in ema_data 
+                    if data_point['period'] in market_config.EMA_PERIODS
+                ]
+                indicators['ema'] = filtered_ema_data
             
             # Get OBV data
             obv_data = db.get_obv_data(symbol, timeframe, start, end)

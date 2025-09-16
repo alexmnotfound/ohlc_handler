@@ -114,7 +114,7 @@ BINANCE_API_URL=https://api.binance.com
 
 The following indicators are calculated by default:
 
-- EMA: 9, 20, 50, 100, 200 periods
+- EMA: 11, 22, 50, 200 periods
 - RSI: 14 periods
 - OBV: 20-period EMA
 - Chandelier Exit: 22 periods, 3.0 multiplier
@@ -127,8 +127,8 @@ The service fetches data in batches to optimize API usage and memory management:
 - 1h timeframe: 24 candles per batch
 - 4h timeframe: 6 candles per batch
 - 1d timeframe: 7 candles per batch
-- 1w timeframe: 4-5 candles per batch
-- 1M timeframe: 3 candles per batch
+- 1w timeframe: ~522 candles per batch (~10 years)
+- 1M timeframe: ~120 candles per batch (~10 years)
 
 ## API Endpoints
 
