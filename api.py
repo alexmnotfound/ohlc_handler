@@ -62,6 +62,7 @@ def check_db_connection():
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
 
+
 @app.get("/")
 async def root():
     return {"message": "OHLC Handler API is running"}
@@ -267,6 +268,44 @@ async def get_ohlc_data(
     except Exception as e:
         logger.error(f"Error fetching data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/update/timeframe/{timeframe}")
+async def trigger_update_timeframe(
+    timeframe: str,
+    calculate_indicators: bool = True
+):
+    """Update all symbols for one timeframe. For cron: run at fixed times per timeframe (e.g. 1h at :05, 4h at :10)."""
+    if timeframe not in market_config.TIMEFRAMES:
+        raise HTTPException(status_code=400, detail=f"Invalid timeframe. Must be one of {list(market_config.TIMEFRAMES.keys())}")
+    results = []
+    for symbol in market_config.TICKERS:
+        try:
+            klines = await fetch_historical_data(symbol, timeframe)
+            if calculate_indicators:
+                calculator = IndicatorCalculator()
+                rsi_calculator = RSICalculator()
+                obv_calculator = OBVCalculator()
+                pivot_calculator = PivotCalculator()
+                ce_calculator = CECalculator()
+                pattern_calculator = CandlePatternCalculator()
+                try:
+                    calculator.calculate_indicators(symbol, timeframe)
+                    rsi_calculator.calculate_rsi(symbol, timeframe)
+                    obv_calculator.calculate_obv(symbol, timeframe)
+                    pivot_calculator.calculate_pivots(symbol, timeframe)
+                    ce_calculator.calculate_ce(symbol, timeframe)
+                    pattern_calculator.calculate_patterns(symbol, timeframe)
+                finally:
+                    for obj in (calculator, rsi_calculator, obv_calculator, pivot_calculator, ce_calculator, pattern_calculator):
+                        if hasattr(obj, "db"):
+                            obj.db.close()
+            results.append({"symbol": symbol, "timeframe": timeframe, "candles_updated": len(klines)})
+        except Exception as e:
+            logger.error(f"Error updating {symbol} {timeframe}: {str(e)}")
+            results.append({"symbol": symbol, "timeframe": timeframe, "error": str(e)})
+    return {"message": f"Updated timeframe {timeframe} for all symbols", "results": results}
+
 
 @app.post("/update/{symbol}/{timeframe}")
 async def trigger_update(

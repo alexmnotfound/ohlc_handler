@@ -1,34 +1,40 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ohlc_data}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   ohlc-handler:
     build: .
     ports:
       - "8000:8000"
     environment:
-      - DB_HOST=host.docker.internal
+      - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
+      - BINANCE_API_URL=${BINANCE_API_URL:-https://api.binance.com}
     volumes:
       - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
-# Comentamos el servicio postgres ya que usaremos la instancia local
-#  postgres:
-#    image: postgres:latest
-#    environment:
-#      POSTGRES_DB: ${DB_NAME}
-#      POSTGRES_USER: ${DB_USER}
-#      POSTGRES_PASSWORD: ${DB_PASSWORD}
-#    volumes:
-#      - postgres_data:/var/lib/postgresql/data
-#    ports:
-#      - "5432:5432"
-#    restart: unless-stopped
-
-# volumes:
-#   postgres_data: 
+volumes:
+  postgres_data:

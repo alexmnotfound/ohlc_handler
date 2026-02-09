@@ -1,3 +1,4 @@
+import asyncio
 from core import BinanceClient
 import logging
 from datetime import datetime, timezone, timedelta
@@ -147,47 +148,15 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
         logger.error(f"Error fetching data for {ticker} {timeframe}: {str(e)}")
         raise
 
-def process_ohlc_data():
-    """CLI interface for processing OHLC data and calculating indicators"""
-    parser = argparse.ArgumentParser(description='Fetch historical klines data from Binance')
-    parser.add_argument('--ticker', type=str, help='Trading pair ticker (e.g., BTCUSDT)')
-    parser.add_argument('--start', type=str, help='Start date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
-    parser.add_argument('--end', type=str, help='End date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
-    parser.add_argument('--timeframe', type=str, help='Time timeframe (e.g., 1h, 4h, 1d)')
-    parser.add_argument('--skip-indicators', action='store_true', help='Skip indicator calculation')
-    parser.add_argument('--indicators', type=str, 
-                        choices=['all', 'ema', 'rsi', 'obv', 'pivot', 'ce', 'patterns'], 
-                        default='all', 
-                        help='Specify which indicators to calculate (default: all)')
-    parser.add_argument('--skip-ohlc', action='store_true', help='Skip OHLC data fetching')
-
-    args = parser.parse_args()
-
-    # Parse dates if provided
-    start_date = parse_date(args.start) if args.start else None
-    end_date = parse_date(args.end) if args.end else None
-
-    if start_date and end_date and start_date >= end_date:
-        raise ValueError("Start date must be before end date")
-
-    # Determine which tickers to process
-    tickers = [args.ticker] if args.ticker else market_config.TICKERS
-    # Determine which timeframes to process
-    timeframes = [args.timeframe] if args.timeframe else list(market_config.TIMEFRAMES.keys())
-
-    logger.info(f"Processing {len(tickers)} tickers and {len(timeframes)} timeframes")
-    if start_date and not args.skip_ohlc:
-        logger.info(f"Date range: {start_date} to {end_date or 'now'}")
-
+async def _run_ohlc_and_indicators(args, tickers, timeframes, start_date, end_date):
+    """Async loop: fetch OHLC and optionally calculate indicators."""
     for ticker in tickers:
         for timeframe in timeframes:
             try:
-                # Fetch OHLC data if not skipped
                 if not args.skip_ohlc:
                     logger.info(f"Fetching OHLC data for {ticker} {timeframe}")
-                    fetch_historical_data(ticker, timeframe, start_date, end_date)
-                
-                # Calculate indicators if not skipped
+                    await fetch_historical_data(ticker, timeframe, start_date, end_date)
+
                 if not args.skip_indicators:
                     # Calculate EMA
                     if args.indicators in ['all', 'ema']:
@@ -224,10 +193,43 @@ def process_ohlc_data():
                         logger.info(f"Calculating Candle Patterns for {ticker} {timeframe}")
                         pattern_calculator = CandlePatternCalculator()
                         pattern_calculator.calculate_patterns(ticker, timeframe)
-                        
+
             except Exception as e:
                 logger.error(f"Failed to process {ticker} {timeframe}: {str(e)}")
                 continue
+
+
+def process_ohlc_data():
+    """CLI interface for processing OHLC data and calculating indicators"""
+    parser = argparse.ArgumentParser(description='Fetch historical klines data from Binance')
+    parser.add_argument('--ticker', type=str, help='Trading pair ticker (e.g., BTCUSDT)')
+    parser.add_argument('--start', type=str, help='Start date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
+    parser.add_argument('--end', type=str, help='End date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)')
+    parser.add_argument('--timeframe', type=str, help='Time timeframe (e.g., 1h, 4h, 1d)')
+    parser.add_argument('--skip-indicators', action='store_true', help='Skip indicator calculation')
+    parser.add_argument('--indicators', type=str,
+                        choices=['all', 'ema', 'rsi', 'obv', 'pivot', 'ce', 'patterns'],
+                        default='all',
+                        help='Specify which indicators to calculate (default: all)')
+    parser.add_argument('--skip-ohlc', action='store_true', help='Skip OHLC data fetching')
+
+    args = parser.parse_args()
+
+    start_date = parse_date(args.start) if args.start else None
+    end_date = parse_date(args.end) if args.end else None
+
+    if start_date and end_date and start_date >= end_date:
+        raise ValueError("Start date must be before end date")
+
+    tickers = [args.ticker] if args.ticker else market_config.TICKERS
+    timeframes = [args.timeframe] if args.timeframe else list(market_config.TIMEFRAMES.keys())
+
+    logger.info(f"Processing {len(tickers)} tickers and {len(timeframes)} timeframes")
+    if start_date and not args.skip_ohlc:
+        logger.info(f"Date range: {start_date} to {end_date or 'now'}")
+
+    asyncio.run(_run_ohlc_and_indicators(args, tickers, timeframes, start_date, end_date))
+
 
 if __name__ == "__main__":
     process_ohlc_data() 
