@@ -59,6 +59,16 @@ class MarketConfig:
         '1M': 1440
     })
 
+    # Lookback days so we have enough candles for indicators (EMA 200, CE 22).
+    # Used when DB has no data (initial backfill) and when extending from last candle.
+    LOOKBACK_DAYS: Dict[str, int] = field(default_factory=lambda: {
+        '1h': 30,       # 30 days = 720 candles
+        '4h': 90,       # ~540 candles (need 200+ for EMA)
+        '1d': 250,      # 250 candles
+        '1w': 1500,     # ~214 weeks
+        '1M': 6100      # ~200 months for EMA 200
+    })
+
 @dataclass
 class APIConfig:
     # Only the base URL comes from environment

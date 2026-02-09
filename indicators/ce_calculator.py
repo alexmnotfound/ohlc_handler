@@ -102,10 +102,10 @@ class CECalculator:
         result['atr'] = result['atr'] * mult
         
         # Initialize the result columns
-        result['long_stop'] = pd.Series(dtype=float)
-        result['short_stop'] = pd.Series(dtype=float)
-        result['dir'] = pd.Series(dtype=int)
-        result['dir'].iloc[0] = 1  # Initial direction is long (default in PineScript)
+        result['long_stop'] = np.nan
+        result['short_stop'] = np.nan
+        result['dir'] = 0
+        result.loc[result.index[0], 'dir'] = 1  # Initial direction is long (default in PineScript)
         
         # Process each row to match PineScript's calculation exactly
         for i in range(length, len(result)):

@@ -42,47 +42,22 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
             last_candle = db.get_last_candle(ticker, timeframe)
             
             if last_candle:
-                # Debug logging for raw timestamp
                 raw_timestamp = last_candle[0]
                 logger.info(f"Raw timestamp from last candle: {raw_timestamp}")
-                logger.info(f"Raw timestamp type: {type(raw_timestamp)}")
-                
-                # Convert timestamp to UTC datetime - ensure it's an integer
                 timestamp_ms = int(raw_timestamp)
-                logger.info(f"Converted timestamp_ms: {timestamp_ms}")
                 last_timestamp = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
-                # Calculate minimum required candles for all indicators
-                max_period = max(
-                    market_config.CE_PERIOD,  # Chandelier Exit
-                    max(market_config.EMA_PERIODS),  # EMA
-                    market_config.RSI_PERIOD,  # RSI
-                    market_config.OBV_MA_PERIOD,  # OBV
-                )
-                
-                # Calculate minimum days needed based on timeframe
-                if timeframe == '1h':
-                    min_days = 7  
-                elif timeframe == '4h':
-                    min_days = 14 
-                elif timeframe == '1d':
-                    min_days = 30 
-                elif timeframe == '1w':
-                    min_days = 60 
-                elif timeframe == '1M':
-                    min_days = 90 
-                else:
-                    min_days = 7  # Default to 7 days
-                
-                # Start from min_days before the last candle
-                start_time = last_timestamp - timedelta(days=min_days)
+                # Use config lookback so we have enough candles for EMA 200 / CE 22 (not a tiny overlap)
+                lookback_days = market_config.LOOKBACK_DAYS.get(timeframe, 30)
+                start_time = last_timestamp - timedelta(days=lookback_days)
+                logger.info(f"Extending from last candle for {ticker} {timeframe}, lookback {lookback_days} days")
             else:
-                # If no data exists, use start_date or default to 30 days ago
+                # No data: use start_date or config lookback so indicators have enough candles
                 if start_date:
                     start_time = start_date.replace(tzinfo=timezone.utc)
                 else:
-                    # Default to 30 days ago if no data exists
-                    start_time = datetime.now(timezone.utc) - timedelta(days=30)
-                    logger.info(f"No existing data found, using default start date: {start_time}")
+                    lookback_days = market_config.LOOKBACK_DAYS.get(timeframe, 30)
+                    start_time = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+                    logger.info(f"No existing data for {ticker} {timeframe}, using lookback {lookback_days} days: {start_time}")
             
             # Use provided end_date or default to now
             end_time = end_date.replace(tzinfo=timezone.utc) if end_date else datetime.now(timezone.utc)

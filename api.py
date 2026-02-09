@@ -270,12 +270,8 @@ async def get_ohlc_data(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/update/timeframe/{timeframe}")
-async def trigger_update_timeframe(
-    timeframe: str,
-    calculate_indicators: bool = True
-):
-    """Update all symbols for one timeframe. For cron: run at fixed times per timeframe (e.g. 1h at :05, 4h at :10)."""
+async def _trigger_update_timeframe_impl(timeframe: str, calculate_indicators: bool = True):
+    """Update all symbols for one timeframe. Shared by both route paths."""
     if timeframe not in market_config.TIMEFRAMES:
         raise HTTPException(status_code=400, detail=f"Invalid timeframe. Must be one of {list(market_config.TIMEFRAMES.keys())}")
     results = []
@@ -302,9 +298,25 @@ async def trigger_update_timeframe(
                             obj.db.close()
             results.append({"symbol": symbol, "timeframe": timeframe, "candles_updated": len(klines)})
         except Exception as e:
-            logger.error(f"Error updating {symbol} {timeframe}: {str(e)}")
+            logger.exception(f"Error updating {symbol} {timeframe}")
             results.append({"symbol": symbol, "timeframe": timeframe, "error": str(e)})
     return {"message": f"Updated timeframe {timeframe} for all symbols", "results": results}
+
+
+@app.post("/timeframe/{timeframe}/update")
+@app.post("/update/timeframe/{timeframe}")
+async def trigger_update_timeframe(
+    timeframe: str,
+    calculate_indicators: bool = True
+):
+    """Update all symbols for one timeframe. For cron: run at fixed times per timeframe."""
+    try:
+        return await _trigger_update_timeframe_impl(timeframe, calculate_indicators)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("trigger_update_timeframe failed")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/update/{symbol}/{timeframe}")
