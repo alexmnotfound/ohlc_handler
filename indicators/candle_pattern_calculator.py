@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import logging
+from typing import Optional
 from core import DBHandler
 from datetime import datetime
 from config import market_config
@@ -11,8 +12,8 @@ class CandlePatternCalculator:
     def __init__(self):
         self.db = DBHandler()
 
-    def calculate_patterns(self, ticker: str, timeframe: str) -> None:
-        """Calculate candlestick patterns for a given ticker and timeframe"""
+    def calculate_patterns(self, ticker: str, timeframe: str, only_save_last_n: Optional[int] = None) -> None:
+        """Calculate candlestick patterns for a given ticker and timeframe. If only_save_last_n is set, only update that many tail rows (incremental update)."""
         try:
             # Fetch OHLC data from database
             data = self.db.get_klines(ticker, timeframe)
@@ -45,7 +46,7 @@ class CandlePatternCalculator:
             df_with_patterns = self._calculate_patterns(df)
             
             # Save to database
-            self._save_patterns(ticker, timeframe, df_with_patterns)
+            self._save_patterns(ticker, timeframe, df_with_patterns, only_save_last_n=only_save_last_n)
             logger.info(f"Calculated and saved candlestick patterns for {ticker} {timeframe}")
 
         except Exception as e:
@@ -137,7 +138,7 @@ class CandlePatternCalculator:
                 
         return df
 
-    def _save_patterns(self, ticker: str, timeframe: str, df: pd.DataFrame) -> None:
+    def _save_patterns(self, ticker: str, timeframe: str, df: pd.DataFrame, only_save_last_n: Optional[int] = None) -> None:
         """Save candlestick patterns to database"""
         try:
             # Prepare data for batch update
@@ -151,6 +152,8 @@ class CandlePatternCalculator:
                         dt,
                         row['pattern']
                     ))
+            if only_save_last_n is not None and only_save_last_n > 0:
+                values = values[-only_save_last_n:]
 
             if values:
                 # Update the candle_pattern column in ohlc_data table

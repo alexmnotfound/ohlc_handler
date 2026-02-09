@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import logging
+from typing import Optional
 from core import DBHandler
 from datetime import datetime
 from config import market_config
@@ -11,8 +12,8 @@ class OBVCalculator:
     def __init__(self):
         self.db = DBHandler()
 
-    def calculate_obv(self, ticker: str, timeframe: str) -> None:
-        """Calculate OBV (On Balance Volume) for a given ticker and timeframe"""
+    def calculate_obv(self, ticker: str, timeframe: str, only_save_last_n: Optional[int] = None) -> None:
+        """Calculate OBV (On Balance Volume) for a given ticker and timeframe. If only_save_last_n is set, only save that many tail records (incremental update)."""
         try:
             # Fetch OHLC data from database
             data = self.db.get_klines(ticker, timeframe)
@@ -38,7 +39,7 @@ class OBVCalculator:
             # Save OBV data
             ma_period = market_config.OBV_MA_PERIOD
             bb_std = market_config.OBV_BB_STD
-            self._save_obv_data(ticker, timeframe, df_with_obv, ma_period, bb_std)
+            self._save_obv_data(ticker, timeframe, df_with_obv, ma_period, bb_std, only_save_last_n=only_save_last_n)
             logger.info(f"Calculated and saved OBV for {ticker} {timeframe}")
 
         except Exception as e:
@@ -125,7 +126,7 @@ class OBVCalculator:
         
         return result_df
 
-    def _save_obv_data(self, ticker: str, timeframe: str, df: pd.DataFrame, ma_period: int, bb_std: float) -> None:
+    def _save_obv_data(self, ticker: str, timeframe: str, df: pd.DataFrame, ma_period: int, bb_std: float, only_save_last_n: Optional[int] = None) -> None:
         """Save OBV values to database"""
         try:
             # Check if MA is enabled
@@ -175,7 +176,8 @@ class OBVCalculator:
                     record['lower_band'] = None
                 
                 obv_records.append(record)
-            
+            if only_save_last_n is not None and only_save_last_n > 0:
+                obv_records = obv_records[-only_save_last_n:]
             # Save to database if we have records
             if obv_records:
                 self.db.save_obv_data(obv_records)

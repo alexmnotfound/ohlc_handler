@@ -274,10 +274,14 @@ async def _trigger_update_timeframe_impl(timeframe: str, calculate_indicators: b
     """Update all symbols for one timeframe. Shared by both route paths."""
     if timeframe not in market_config.TIMEFRAMES:
         raise HTTPException(status_code=400, detail=f"Invalid timeframe. Must be one of {list(market_config.TIMEFRAMES.keys())}")
+    # When we only fetched a few candles (update), only save the last N indicator rows
+    INCREMENTAL_SAVE_THRESHOLD = 50
+
     results = []
     for symbol in market_config.TICKERS:
         try:
             klines = await fetch_historical_data(symbol, timeframe)
+            only_save_last_n = len(klines) if 0 < len(klines) <= INCREMENTAL_SAVE_THRESHOLD else None
             if calculate_indicators:
                 calculator = IndicatorCalculator()
                 rsi_calculator = RSICalculator()
@@ -286,12 +290,12 @@ async def _trigger_update_timeframe_impl(timeframe: str, calculate_indicators: b
                 ce_calculator = CECalculator()
                 pattern_calculator = CandlePatternCalculator()
                 try:
-                    calculator.calculate_indicators(symbol, timeframe)
-                    rsi_calculator.calculate_rsi(symbol, timeframe)
-                    obv_calculator.calculate_obv(symbol, timeframe)
-                    pivot_calculator.calculate_pivots(symbol, timeframe)
-                    ce_calculator.calculate_ce(symbol, timeframe)
-                    pattern_calculator.calculate_patterns(symbol, timeframe)
+                    calculator.calculate_indicators(symbol, timeframe, only_save_last_n=only_save_last_n)
+                    rsi_calculator.calculate_rsi(symbol, timeframe, only_save_last_n=only_save_last_n)
+                    obv_calculator.calculate_obv(symbol, timeframe, only_save_last_n=only_save_last_n)
+                    pivot_calculator.calculate_pivots(symbol, timeframe, only_save_last_n=only_save_last_n)
+                    ce_calculator.calculate_ce(symbol, timeframe, only_save_last_n=only_save_last_n)
+                    pattern_calculator.calculate_patterns(symbol, timeframe, only_save_last_n=only_save_last_n)
                 finally:
                     for obj in (calculator, rsi_calculator, obv_calculator, pivot_calculator, ce_calculator, pattern_calculator):
                         if hasattr(obj, "db"):

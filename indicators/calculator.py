@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import List, Dict
+from typing import List, Dict, Optional
 import logging
 from core import DBHandler
 from datetime import datetime, timezone
@@ -12,8 +12,8 @@ class IndicatorCalculator:
     def __init__(self):
         self.db = DBHandler()
 
-    def calculate_indicators(self, ticker: str, timeframe: str) -> None:
-        """Calculate EMA indicator for a given ticker and timeframe"""
+    def calculate_indicators(self, ticker: str, timeframe: str, only_save_last_n: Optional[int] = None) -> None:
+        """Calculate EMA indicator for a given ticker and timeframe. If only_save_last_n is set, only save that many tail records (for incremental updates)."""
         try:
             # Fetch OHLC data from database
             data = self.db.get_klines(ticker, timeframe)
@@ -33,7 +33,7 @@ class IndicatorCalculator:
             df['timestamp'] = pd.to_numeric(df['timestamp'])
 
             # Calculate EMA
-            self._calculate_ema(df, ticker, timeframe)
+            self._calculate_ema(df, ticker, timeframe, only_save_last_n=only_save_last_n)
             logger.info(f"Calculated EMA indicators for {ticker} {timeframe}")
 
         except Exception as e:
@@ -42,7 +42,7 @@ class IndicatorCalculator:
         finally:
             self.db.close()
 
-    def _calculate_ema(self, df: pd.DataFrame, ticker: str, timeframe: str) -> None:
+    def _calculate_ema(self, df: pd.DataFrame, ticker: str, timeframe: str, only_save_last_n: Optional[int] = None) -> None:
         """Calculate Exponential Moving Average and save to database"""
         try:
             # Calculate and save EMAs one period at a time
@@ -63,7 +63,8 @@ class IndicatorCalculator:
                         'period': period,
                         'value': float(value)
                     })
-                
+                if only_save_last_n is not None and only_save_last_n > 0:
+                    ema_records = ema_records[-only_save_last_n:]
                 # Save this period's records to database
                 if ema_records:
                     self.db.save_ema_data(ema_records)

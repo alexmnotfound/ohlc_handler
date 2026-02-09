@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import logging
+from typing import Optional
 from core import DBHandler
 from datetime import datetime
 from config import market_config
@@ -11,8 +12,8 @@ class PivotCalculator:
     def __init__(self):
         self.db = DBHandler()
 
-    def calculate_pivots(self, ticker: str, timeframe: str = "1M") -> None:
-        """Calculate monthly pivot points for a given ticker"""
+    def calculate_pivots(self, ticker: str, timeframe: str = "1M", only_save_last_n: Optional[int] = None) -> None:
+        """Calculate monthly pivot points for a given ticker. If only_save_last_n is set, only save that many tail records (incremental update)."""
         try:
             # For pivots, we only work with monthly timeframe
             if timeframe != "1M":
@@ -41,7 +42,7 @@ class PivotCalculator:
 
             # Calculate pivots
             df_with_pivots = self._calculate_pivot_values(df.copy())
-            self._save_pivot_data(ticker, timeframe, df_with_pivots)
+            self._save_pivot_data(ticker, timeframe, df_with_pivots, only_save_last_n=only_save_last_n)
             logger.info(f"Calculated and saved pivot points for {ticker} {timeframe}")
 
         except Exception as e:
@@ -81,7 +82,7 @@ class PivotCalculator:
         
         return df
 
-    def _save_pivot_data(self, ticker: str, timeframe: str, df: pd.DataFrame) -> None:
+    def _save_pivot_data(self, ticker: str, timeframe: str, df: pd.DataFrame, only_save_last_n: Optional[int] = None) -> None:
         """Save pivot values to database"""
         try:
             # Prepare records for database
@@ -110,7 +111,8 @@ class PivotCalculator:
                     's4': float(row['S4']),
                     's5': float(row['S5']),
                 })
-            
+            if only_save_last_n is not None and only_save_last_n > 0:
+                pivot_records = pivot_records[-only_save_last_n:]
             # Save to database if we have records
             if pivot_records:
                 self.db.save_pivot_data(pivot_records)

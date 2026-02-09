@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import logging
+from typing import Optional
 from core import DBHandler
 from datetime import datetime
 from config import market_config
@@ -11,8 +12,8 @@ class CECalculator:
     def __init__(self):
         self.db = DBHandler()
 
-    def calculate_ce(self, ticker: str, timeframe: str) -> None:
-        """Calculate Chandelier Exit for a given ticker and timeframe"""
+    def calculate_ce(self, ticker: str, timeframe: str, only_save_last_n: Optional[int] = None) -> None:
+        """Calculate Chandelier Exit for a given ticker and timeframe. If only_save_last_n is set, only save that many tail records (incremental update)."""
         try:
             # Fetch OHLC data from database
             data = self.db.get_klines(ticker, timeframe)
@@ -46,7 +47,7 @@ class CECalculator:
             df_with_ce = self._calculate_ce_values(df)
             
             # Save to database
-            self._save_ce_data(ticker, timeframe, df_with_ce)
+            self._save_ce_data(ticker, timeframe, df_with_ce, only_save_last_n=only_save_last_n)
             logger.info(f"Calculated and saved Chandelier Exit for {ticker} {timeframe}")
 
         except Exception as e:
@@ -183,7 +184,7 @@ class CECalculator:
                 
         return result
 
-    def _save_ce_data(self, ticker: str, timeframe: str, df: pd.DataFrame) -> None:
+    def _save_ce_data(self, ticker: str, timeframe: str, df: pd.DataFrame, only_save_last_n: Optional[int] = None) -> None:
         """Save Chandelier Exit values to database"""
         try:
             ce_records = []
@@ -207,6 +208,8 @@ class CECalculator:
                     'buy_signal': bool(row['buy_signal']),
                     'sell_signal': bool(row['sell_signal']),
                 })
+            if only_save_last_n is not None and only_save_last_n > 0:
+                ce_records = ce_records[-only_save_last_n:]
 
             if ce_records:
                 self.db.save_ce_data(ce_records)

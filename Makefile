@@ -3,9 +3,9 @@
 
 .PHONY: up down build logs postgres-up init-db backfill run setup psql help
 
-# Default: full stack (postgres + ohlc-handler)
+# Default: full stack (postgres + ohlc-handler). Rebuilds image so code changes are picked up.
 up:
-	docker-compose up -d
+	docker-compose up -d --build
 
 down:
 	docker-compose down

@@ -46,10 +46,9 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
                 logger.info(f"Raw timestamp from last candle: {raw_timestamp}")
                 timestamp_ms = int(raw_timestamp)
                 last_timestamp = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
-                # Use config lookback so we have enough candles for EMA 200 / CE 22 (not a tiny overlap)
-                lookback_days = market_config.LOOKBACK_DAYS.get(timeframe, 30)
-                start_time = last_timestamp - timedelta(days=lookback_days)
-                logger.info(f"Extending from last candle for {ticker} {timeframe}, lookback {lookback_days} days")
+                # Update: fetch only from last candle to now (indicators read full history from DB)
+                start_time = last_timestamp
+                logger.info(f"Update: fetching from last candle for {ticker} {timeframe} from {start_time}")
             else:
                 # No data: use start_date or config lookback so indicators have enough candles
                 if start_date:

@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import logging
+from typing import Optional
 from core import DBHandler
 from datetime import datetime
 from config import market_config
@@ -11,8 +12,8 @@ class RSICalculator:
     def __init__(self):
         self.db = DBHandler()
 
-    def calculate_rsi(self, ticker: str, timeframe: str) -> None:
-        """Calculate RSI for a given ticker and timeframe"""
+    def calculate_rsi(self, ticker: str, timeframe: str, only_save_last_n: Optional[int] = None) -> None:
+        """Calculate RSI for a given ticker and timeframe. If only_save_last_n is set, only save that many tail records (incremental update)."""
         try:
             # Fetch OHLC data from database
             data = self.db.get_klines(ticker, timeframe)
@@ -34,7 +35,7 @@ class RSICalculator:
             # Calculate RSI using the configured period
             period = market_config.RSI_PERIOD
             df_with_rsi = self._calculate_rsi_values(df.copy(), period)
-            self._save_rsi_data(ticker, timeframe, df_with_rsi, period)
+            self._save_rsi_data(ticker, timeframe, df_with_rsi, period, only_save_last_n=only_save_last_n)
             logger.info(f"Calculated and saved RSI with period {period} for {ticker} {timeframe}")
 
         except Exception as e:
@@ -65,7 +66,7 @@ class RSICalculator:
         
         return df
 
-    def _save_rsi_data(self, ticker: str, timeframe: str, df: pd.DataFrame, period: int) -> None:
+    def _save_rsi_data(self, ticker: str, timeframe: str, df: pd.DataFrame, period: int, only_save_last_n: Optional[int] = None) -> None:
         """Save RSI values to database"""
         try:
             # Prepare records for database
@@ -85,7 +86,8 @@ class RSICalculator:
                     'period': period,
                     'value': float(rsi_value)
                 })
-            
+            if only_save_last_n is not None and only_save_last_n > 0:
+                rsi_records = rsi_records[-only_save_last_n:]
             # Save to database if we have records
             if rsi_records:
                 self.db.save_rsi_data(rsi_records)
