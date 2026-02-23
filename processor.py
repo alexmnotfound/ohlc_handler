@@ -50,7 +50,7 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
                 start_time = last_timestamp
                 logger.info(f"Update: fetching from last candle for {ticker} {timeframe} from {start_time}")
             else:
-                # No data: use start_date or config lookback so indicators have enough candles
+                # New ticker or empty DB: use start_date or config lookback so indicators have enough candles
                 if start_date:
                     start_time = start_date.replace(tzinfo=timezone.utc)
                 else:

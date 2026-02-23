@@ -11,7 +11,7 @@ down:
 	docker-compose down
 
 build:
-	docker-compose build
+	docker-compose build ohlc-handler
 
 logs:
 	docker-compose logs -f
