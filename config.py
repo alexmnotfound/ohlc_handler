@@ -11,7 +11,7 @@ load_dotenv()
 class MarketConfig:
     # Market Configuration
     DEFAULT_START_DATE: datetime = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    TICKERS: List[str] = field(default_factory=lambda: ['BTCUSDT', 'ETHUSDT'])
+    TICKERS: List[str] = field(default_factory=lambda: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'LINKUSDT'])
     TIMEFRAMES: Dict[str, str] = field(default_factory=lambda: {
         '1h': '1h',
         '4h': '4h',

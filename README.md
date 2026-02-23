@@ -41,6 +41,8 @@ Environment variables loaded from `.env`:
 
 Defaults and market settings live in `config.py`: tickers `BTCUSDT`, `ETHUSDT`; timeframes `1h`, `4h`, `1d`, `1w`, `1M`; indicator periods (EMA 11/22/50/200, RSI 14, OBV MA 20, CE 22/3.0, pivots monthly). `LOOKBACK_DAYS` controls how much history is fetched when backfilling or extending from the last candle to ensure enough data for indicators.
 
+**Adding a new ticker:** Append the symbol to `TICKERS` in `config.py`, then commit and deploy so the VPS (and any clone) gets the updated list; restart the OHLC API after deploy. For a new ticker there is no last candle in the DB, so the fetcher automatically uses `LOOKBACK_DAYS` per timeframe and backfills from (now − lookback) to now. Run the usual update (CLI `python processor.py` or API `POST /update/{symbol}/{timeframe}`, or update all symbols/timeframes); no extra step is required.
+
 ## Database
 
 Schema and setup helpers are in `db/`. Timestamp columns are stored as `timestamp without time zone` and all data is treated as UTC.
@@ -81,7 +83,7 @@ The alert system runs as a separate service. It should **read** from the same Po
 | POST | `/update/{symbol}` | Update all timeframes for one symbol |
 | POST | `/update` | Update all symbols and timeframes |
 
-**Allowed values:** `symbol` ∈ `BTCUSDT`, `ETHUSDT`; `timeframe` ∈ `1h`, `4h`, `1d`, `1w`, `1M`. Dates: `YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS` (UTC).
+**Allowed values:** `symbol` ∈ list in `config.py` (`TICKERS`); `timeframe` ∈ `1h`, `4h`, `1d`, `1w`, `1M`. Dates: `YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS` (UTC).
 
 ### Reading from the database
 
