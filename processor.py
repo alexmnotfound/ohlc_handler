@@ -11,6 +11,7 @@ from indicators.obv_calculator import OBVCalculator
 from indicators.pivot_calculator import PivotCalculator
 from indicators.ce_calculator import CECalculator
 from indicators.candle_pattern_calculator import CandlePatternCalculator
+from indicators.daily_smma_calculator import DailySMMACalculator
 from typing import List, Optional
 
 # Configure logging
@@ -172,6 +173,15 @@ async def _run_ohlc_and_indicators(args, tickers, timeframes, start_date, end_da
                 logger.error(f"Failed to process {ticker} {timeframe}: {str(e)}")
                 continue
 
+        # Daily SMMA 99 (RMA on 1d close) - once per ticker when 1d is in timeframes
+        if not args.skip_indicators and args.indicators in ['all', 'daily_smma'] and '1d' in timeframes:
+            try:
+                logger.info(f"Calculating Daily SMMA 99 for {ticker}")
+                smma_calc = DailySMMACalculator()
+                smma_calc.calculate(ticker)
+            except Exception as e:
+                logger.error(f"Failed Daily SMMA 99 for {ticker}: {e}")
+
 
 def process_ohlc_data():
     """CLI interface for processing OHLC data and calculating indicators"""
@@ -182,7 +192,7 @@ def process_ohlc_data():
     parser.add_argument('--timeframe', type=str, help='Time timeframe (e.g., 1h, 4h, 1d)')
     parser.add_argument('--skip-indicators', action='store_true', help='Skip indicator calculation')
     parser.add_argument('--indicators', type=str,
-                        choices=['all', 'ema', 'rsi', 'obv', 'pivot', 'ce', 'patterns'],
+                        choices=['all', 'ema', 'rsi', 'obv', 'pivot', 'ce', 'patterns', 'daily_smma'],
                         default='all',
                         help='Specify which indicators to calculate (default: all)')
     parser.add_argument('--skip-ohlc', action='store_true', help='Skip OHLC data fetching')

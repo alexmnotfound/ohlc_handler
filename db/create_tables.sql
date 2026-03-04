@@ -106,5 +106,14 @@ CREATE TABLE IF NOT EXISTS pivot_data (
 CREATE INDEX IF NOT EXISTS idx_pivot_ticker_timeframe 
 ON pivot_data(ticker, timeframe);
 
+-- Daily SMMA 99 (RMA of daily close, period 99 - Pine ta.rma(close, 99) on "D")
+CREATE TABLE IF NOT EXISTS daily_smma_99 (
+    ticker TEXT NOT NULL,
+    timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    value NUMERIC(18, 8) NOT NULL,
+    PRIMARY KEY (ticker, timestamp)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_smma_99_ticker ON daily_smma_99(ticker);
+
 -- Comment: All timestamp columns use TIMESTAMP WITHOUT TIME ZONE
 -- This ensures consistent behavior between all tables 

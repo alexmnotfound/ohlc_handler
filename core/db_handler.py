@@ -337,6 +337,45 @@ class DBHandler:
             self.conn.rollback()
             raise
 
+    def save_daily_smma_99(self, records: List[Dict]):
+        """Save Daily SMMA 99 (RMA of daily close, period 99) to daily_smma_99 table."""
+        try:
+            values = [(r['ticker'], r['timestamp'], r['value']) for r in records]
+            if values:
+                execute_values(
+                    self.cur,
+                    """
+                    INSERT INTO daily_smma_99 (ticker, timestamp, value)
+                    VALUES %s
+                    ON CONFLICT (ticker, timestamp) DO UPDATE SET value = EXCLUDED.value
+                    """,
+                    values
+                )
+                self.conn.commit()
+                logger.info(f"Saved {len(values)} daily_smma_99 records")
+            else:
+                logger.warning("No daily_smma_99 data to save")
+        except Exception as e:
+            logger.error(f"Error saving daily_smma_99: {str(e)}")
+            self.conn.rollback()
+            raise
+
+    def get_latest_daily_smma_99(self, ticker: str):
+        """Get the latest daily SMMA 99 value for a ticker. Returns (timestamp, value) or None."""
+        try:
+            self.cur.execute(
+                """
+                SELECT timestamp, value FROM daily_smma_99
+                WHERE ticker = %s ORDER BY timestamp DESC LIMIT 1
+                """,
+                (ticker,)
+            )
+            row = self.cur.fetchone()
+            return (row[0], float(row[1])) if row else None
+        except Exception as e:
+            logger.error(f"Error getting latest daily_smma_99: {str(e)}")
+            return None
+
     def save_ce_data(self, ce_records: List[Dict]):
         """Save Chandelier Exit data to PostgreSQL ce_data table"""
         try:
