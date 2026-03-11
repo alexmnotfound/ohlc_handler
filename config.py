@@ -28,7 +28,7 @@ class MarketConfig:
 
     # Technical Indicator Settings
     # EMA periods
-    EMA_PERIODS: List[int] = field(default_factory=lambda: [11, 22, 50, 200])
+    EMA_PERIODS: List[int] = field(default_factory=lambda: [11, 22, 200])
 
     # RSI settings
     RSI_PERIOD: int = 14
