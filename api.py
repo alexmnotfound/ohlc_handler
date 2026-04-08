@@ -15,6 +15,7 @@ from indicators.obv_calculator import OBVCalculator
 from indicators.pivot_calculator import PivotCalculator
 from indicators.ce_calculator import CECalculator
 from indicators.candle_pattern_calculator import CandlePatternCalculator
+from indicators.atr_calculator import ATRCalculator
 
 # Load environment variables from .env file
 load_dotenv()
@@ -157,6 +158,11 @@ async def get_ohlc_data(
             ce_data = db.get_ce_data(symbol, timeframe, start, end)
             if ce_data:
                 indicators['ce'] = ce_data
+
+            # Get ATR data
+            atr_data = db.get_atr_data(symbol, timeframe, start, end)
+            if atr_data:
+                indicators['atr'] = atr_data
             
             # Get candle pattern data
             pattern_data = db.get_candle_pattern_data(symbol, timeframe, start, end)
@@ -233,12 +239,12 @@ async def get_ohlc_data(
                 
                 # Add other indicators for this timestamp
                 for indicator_name, indicator_data in indicators.items():
-                    if indicator_name in ['rsi', 'ema', 'obv', 'ce', 'pattern']:
+                    if indicator_name in ['rsi', 'ema', 'obv', 'ce', 'pattern', 'atr']:
                         for data_point in indicator_data:
                             if data_point['timestamp'] == timestamp:
                                 if indicator_name not in candle_data['indicators']:
                                     candle_data['indicators'][indicator_name] = {}
-                                if indicator_name in ['rsi', 'ema']:
+                                if indicator_name in ['rsi', 'ema', 'atr']:
                                     candle_data['indicators'][indicator_name][str(data_point['period'])] = data_point['value']
                                 elif indicator_name == 'obv':
                                     candle_data['indicators'][indicator_name] = {
@@ -289,6 +295,7 @@ async def _trigger_update_timeframe_impl(timeframe: str, calculate_indicators: b
                 pivot_calculator = PivotCalculator()
                 ce_calculator = CECalculator()
                 pattern_calculator = CandlePatternCalculator()
+                atr_calculator = ATRCalculator()
                 try:
                     calculator.calculate_indicators(symbol, timeframe, only_save_last_n=only_save_last_n)
                     rsi_calculator.calculate_rsi(symbol, timeframe, only_save_last_n=only_save_last_n)
@@ -296,8 +303,9 @@ async def _trigger_update_timeframe_impl(timeframe: str, calculate_indicators: b
                     pivot_calculator.calculate_pivots(symbol, timeframe, only_save_last_n=only_save_last_n)
                     ce_calculator.calculate_ce(symbol, timeframe, only_save_last_n=only_save_last_n)
                     pattern_calculator.calculate_patterns(symbol, timeframe, only_save_last_n=only_save_last_n)
+                    atr_calculator.calculate_atr(symbol, timeframe, only_save_last_n=only_save_last_n)
                 finally:
-                    for obj in (calculator, rsi_calculator, obv_calculator, pivot_calculator, ce_calculator, pattern_calculator):
+                    for obj in (calculator, rsi_calculator, obv_calculator, pivot_calculator, ce_calculator, pattern_calculator, atr_calculator):
                         if hasattr(obj, "db"):
                             obj.db.close()
             results.append({"symbol": symbol, "timeframe": timeframe, "candles_updated": len(klines)})
@@ -348,7 +356,8 @@ async def trigger_update(
             pivot_calculator = PivotCalculator()
             ce_calculator = CECalculator()
             pattern_calculator = CandlePatternCalculator()
-            
+            atr_calculator = ATRCalculator()
+
             try:
                 # Calculate each indicator
                 calculator.calculate_indicators(symbol, timeframe)
@@ -357,21 +366,13 @@ async def trigger_update(
                 pivot_calculator.calculate_pivots(symbol, timeframe)
                 ce_calculator.calculate_ce(symbol, timeframe)
                 pattern_calculator.calculate_patterns(symbol, timeframe)
+                atr_calculator.calculate_atr(symbol, timeframe)
             finally:
                 # Close database connections
-                if hasattr(calculator, 'db'):
-                    calculator.db.close()
-                if hasattr(rsi_calculator, 'db'):
-                    rsi_calculator.db.close()
-                if hasattr(obv_calculator, 'db'):
-                    obv_calculator.db.close()
-                if hasattr(pivot_calculator, 'db'):
-                    pivot_calculator.db.close()
-                if hasattr(ce_calculator, 'db'):
-                    ce_calculator.db.close()
-                if hasattr(pattern_calculator, 'db'):
-                    pattern_calculator.db.close()
-        
+                for obj in (calculator, rsi_calculator, obv_calculator, pivot_calculator, ce_calculator, pattern_calculator, atr_calculator):
+                    if hasattr(obj, 'db'):
+                        obj.db.close()
+
         return {
             "message": f"Successfully updated {symbol} {timeframe} data",
             "candles_updated": len(klines)
@@ -406,7 +407,8 @@ async def trigger_update_symbol(
                     pivot_calculator = PivotCalculator()
                     ce_calculator = CECalculator()
                     pattern_calculator = CandlePatternCalculator()
-                    
+                    atr_calculator = ATRCalculator()
+
                     try:
                         # Calculate each indicator
                         calculator.calculate_indicators(symbol, timeframe)
@@ -415,21 +417,12 @@ async def trigger_update_symbol(
                         pivot_calculator.calculate_pivots(symbol, timeframe)
                         ce_calculator.calculate_ce(symbol, timeframe)
                         pattern_calculator.calculate_patterns(symbol, timeframe)
+                        atr_calculator.calculate_atr(symbol, timeframe)
                     finally:
-                        # Close database connections
-                        if hasattr(calculator, 'db'):
-                            calculator.db.close()
-                        if hasattr(rsi_calculator, 'db'):
-                            rsi_calculator.db.close()
-                        if hasattr(obv_calculator, 'db'):
-                            obv_calculator.db.close()
-                        if hasattr(pivot_calculator, 'db'):
-                            pivot_calculator.db.close()
-                        if hasattr(ce_calculator, 'db'):
-                            ce_calculator.db.close()
-                        if hasattr(pattern_calculator, 'db'):
-                            pattern_calculator.db.close()
-                
+                        for obj in (calculator, rsi_calculator, obv_calculator, pivot_calculator, ce_calculator, pattern_calculator, atr_calculator):
+                            if hasattr(obj, 'db'):
+                                obj.db.close()
+
                 results.append({
                     "timeframe": timeframe,
                     "candles_updated": len(klines)
@@ -472,7 +465,8 @@ async def trigger_update_all(
                         pivot_calculator = PivotCalculator()
                         ce_calculator = CECalculator()
                         pattern_calculator = CandlePatternCalculator()
-                        
+                        atr_calculator = ATRCalculator()
+
                         try:
                             # Calculate each indicator
                             calculator.calculate_indicators(symbol, timeframe)
@@ -481,20 +475,11 @@ async def trigger_update_all(
                             pivot_calculator.calculate_pivots(symbol, timeframe)
                             ce_calculator.calculate_ce(symbol, timeframe)
                             pattern_calculator.calculate_patterns(symbol, timeframe)
+                            atr_calculator.calculate_atr(symbol, timeframe)
                         finally:
-                            # Close database connections
-                            if hasattr(calculator, 'db'):
-                                calculator.db.close()
-                            if hasattr(rsi_calculator, 'db'):
-                                rsi_calculator.db.close()
-                            if hasattr(obv_calculator, 'db'):
-                                obv_calculator.db.close()
-                            if hasattr(pivot_calculator, 'db'):
-                                pivot_calculator.db.close()
-                            if hasattr(ce_calculator, 'db'):
-                                ce_calculator.db.close()
-                            if hasattr(pattern_calculator, 'db'):
-                                pattern_calculator.db.close()
+                            for obj in (calculator, rsi_calculator, obv_calculator, pivot_calculator, ce_calculator, pattern_calculator, atr_calculator):
+                                if hasattr(obj, 'db'):
+                                    obj.db.close()
                     
                     symbol_results.append({
                         "timeframe": timeframe,

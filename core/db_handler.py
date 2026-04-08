@@ -73,6 +73,26 @@ class DBHandler:
             self.rollback()
             return None
 
+    def get_first_candle_date(self, ticker: str, timeframe: str) -> Optional[datetime]:
+        """Get the timestamp of the first (earliest) candle for a given ticker and timeframe."""
+        try:
+            self.cur.execute(
+                """
+                SELECT timestamp
+                FROM ohlc_data
+                WHERE ticker = %s AND timeframe = %s
+                ORDER BY timestamp ASC
+                LIMIT 1
+                """,
+                (ticker, timeframe)
+            )
+            result = self.cur.fetchone()
+            return result[0] if result else None
+        except Exception as e:
+            logger.error(f"Error getting first candle date: {str(e)}")
+            self.rollback()
+            return None
+
     def save_klines(self, symbol: str, interval: str, klines_data: List[Dict]):
         """Save klines data to PostgreSQL ohlc_data table"""
         try:
@@ -418,6 +438,62 @@ class DBHandler:
             logger.error(f"Error saving Chandelier Exit data: {str(e)}")
             self.conn.rollback()
             raise
+
+    def save_atr_data(self, atr_records: List[Dict]):
+        """Save ATR data to PostgreSQL atr_data table"""
+        try:
+            values = [
+                (r['ticker'], r['timeframe'], r['timestamp'], r['period'], r['value'])
+                for r in atr_records
+            ]
+            if values:
+                execute_values(
+                    self.cur,
+                    """
+                    INSERT INTO atr_data (ticker, timeframe, timestamp, period, value)
+                    VALUES %s
+                    ON CONFLICT (ticker, timeframe, timestamp, period) DO UPDATE SET value = EXCLUDED.value
+                    """,
+                    values
+                )
+                self.conn.commit()
+                logger.info(f"Successfully saved {len(values)} ATR records")
+            else:
+                logger.warning("No ATR data to save")
+        except Exception as e:
+            logger.error(f"Error saving ATR data: {str(e)}")
+            self.conn.rollback()
+            raise
+
+    def get_atr_data(self, symbol: str, timeframe: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict]:
+        """Get ATR data from database for a given symbol and timeframe"""
+        try:
+            query = """
+                SELECT
+                    EXTRACT(EPOCH FROM timestamp) * 1000 as timestamp_ms,
+                    period,
+                    value
+                FROM atr_data
+                WHERE ticker = %s AND timeframe = %s
+            """
+            params = [symbol, timeframe]
+            if start_date:
+                query += " AND timestamp >= %s"
+                params.append(start_date)
+            if end_date:
+                query += " AND timestamp <= %s"
+                params.append(end_date)
+            query += " ORDER BY timestamp ASC"
+            self.cur.execute(query, params)
+            results = self.cur.fetchall()
+            return [{
+                'timestamp': int(row[0]),
+                'period': row[1],
+                'value': float(row[2]) if row[2] is not None else None
+            } for row in results]
+        except Exception as e:
+            logger.error(f"Error fetching ATR data: {str(e)}")
+            return []
 
     def get_rsi_data(self, symbol: str, timeframe: str, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Dict]:
         """Get RSI data from database for a given symbol and timeframe"""

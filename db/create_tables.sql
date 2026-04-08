@@ -115,5 +115,18 @@ CREATE TABLE IF NOT EXISTS daily_smma_99 (
 );
 CREATE INDEX IF NOT EXISTS idx_daily_smma_99_ticker ON daily_smma_99(ticker);
 
+-- ATR (Average True Range) data table
+CREATE TABLE IF NOT EXISTS atr_data (
+    ticker TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    period INTEGER NOT NULL,
+    value NUMERIC(20, 8) NOT NULL,
+    PRIMARY KEY (ticker, timeframe, timestamp, period)
+);
+
+CREATE INDEX IF NOT EXISTS idx_atr_ticker_timeframe_period
+ON atr_data(ticker, timeframe, period);
+
 -- Comment: All timestamp columns use TIMESTAMP WITHOUT TIME ZONE
--- This ensures consistent behavior between all tables 
+-- This ensures consistent behavior between all tables

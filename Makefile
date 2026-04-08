@@ -1,6 +1,6 @@
 # OHLC Handler. Copy .env_example to .env and set DB_*, BINANCE_API_URL.
 
-.PHONY: build up down logs recreate run postgres-up init-db backfill setup psql clean
+.PHONY: build up down logs recreate run postgres-up init-db backfill backfill-ticker extend-backfill setup psql clean
 
 # Docker (same targets as alerts-service)
 build:
@@ -29,6 +29,17 @@ init-db:
 backfill:
 	docker compose run --rm ohlc-handler python processor.py
 
+# Backfill a single ticker (and optionally one timeframe). Usage: make backfill-ticker TICKER=BTCUSDT
+# Optional: make backfill-ticker TICKER=BTCUSDT TIMEFRAME=4h
+backfill-ticker:
+	@[ -n "$(TICKER)" ] || (echo "Usage: make backfill-ticker TICKER=SYMBOL [TIMEFRAME=1h|4h|1d|1w|1M]"; exit 1)
+	docker compose run --rm ohlc-handler python processor.py --ticker $(TICKER) $(if $(TIMEFRAME),--timeframe $(TIMEFRAME),)
+
+# Extend OHLC history backwards to START (default 2025-01-01), then recalc indicators. Use when DB only has recent data.
+# Usage: make extend-backfill [START=2025-01-01] [TICKER=SYMBOL] [TIMEFRAME=1h|4h|1d|1w|1M]
+START ?= 2025-01-01
+extend-backfill:
+	docker compose run --rm ohlc-handler python processor.py --start $(START) $(if $(TICKER),--ticker $(TICKER),) $(if $(TIMEFRAME),--timeframe $(TIMEFRAME),)
 run:
 	uvicorn api:app --reload --host 0.0.0.0 --port 8000
 

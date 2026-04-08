@@ -12,6 +12,7 @@ from indicators.pivot_calculator import PivotCalculator
 from indicators.ce_calculator import CECalculator
 from indicators.candle_pattern_calculator import CandlePatternCalculator
 from indicators.daily_smma_calculator import DailySMMACalculator
+from indicators.atr_calculator import ATRCalculator
 from typing import List, Optional
 
 # Configure logging
@@ -41,8 +42,29 @@ async def fetch_historical_data(ticker: str, timeframe: str, start_date: Optiona
         try:
             # Get the last candle from database
             last_candle = db.get_last_candle(ticker, timeframe)
-            
-            if last_candle:
+
+            # If --start is provided and predates the earliest candle in DB,
+            # extend backwards: fetch from start_date up to the first existing candle.
+            extend_backwards = False
+            if start_date and last_candle:
+                first_candle_dt = db.get_first_candle_date(ticker, timeframe)
+                if first_candle_dt is not None:
+                    if first_candle_dt.tzinfo is None:
+                        first_candle_dt = first_candle_dt.replace(tzinfo=timezone.utc)
+                    requested_start = start_date.replace(tzinfo=timezone.utc)
+                    if requested_start < first_candle_dt:
+                        start_time = requested_start
+                        # Override end_date to the first existing candle so we only
+                        # fetch the missing historical window.
+                        end_date = first_candle_dt
+                        extend_backwards = True
+                        logger.info(
+                            f"Extending backwards for {ticker} {timeframe} from {start_time} to {first_candle_dt}"
+                        )
+
+            if extend_backwards:
+                pass  # start_time / end_date already set above
+            elif last_candle:
                 raw_timestamp = last_candle[0]
                 logger.info(f"Raw timestamp from last candle: {raw_timestamp}")
                 timestamp_ms = int(raw_timestamp)
@@ -169,6 +191,12 @@ async def _run_ohlc_and_indicators(args, tickers, timeframes, start_date, end_da
                         pattern_calculator = CandlePatternCalculator()
                         pattern_calculator.calculate_patterns(ticker, timeframe)
 
+                    # Calculate ATR
+                    if args.indicators in ['all', 'atr']:
+                        logger.info(f"Calculating ATR for {ticker} {timeframe}")
+                        atr_calculator = ATRCalculator()
+                        atr_calculator.calculate_atr(ticker, timeframe)
+
             except Exception as e:
                 logger.error(f"Failed to process {ticker} {timeframe}: {str(e)}")
                 continue
@@ -192,7 +220,7 @@ def process_ohlc_data():
     parser.add_argument('--timeframe', type=str, help='Time timeframe (e.g., 1h, 4h, 1d)')
     parser.add_argument('--skip-indicators', action='store_true', help='Skip indicator calculation')
     parser.add_argument('--indicators', type=str,
-                        choices=['all', 'ema', 'rsi', 'obv', 'pivot', 'ce', 'patterns', 'daily_smma'],
+                        choices=['all', 'ema', 'rsi', 'obv', 'pivot', 'ce', 'patterns', 'daily_smma', 'atr'],
                         default='all',
                         help='Specify which indicators to calculate (default: all)')
     parser.add_argument('--skip-ohlc', action='store_true', help='Skip OHLC data fetching')

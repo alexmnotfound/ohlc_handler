@@ -45,7 +45,7 @@ Defaults and market settings live in `config.py`: tickers `BTCUSDT`, `ETHUSDT`; 
 
 ## Database
 
-Schema and setup helpers are in `db/`. Timestamp columns are stored as `timestamp without time zone` and all data is treated as UTC.
+Schema and setup helpers are in `db/`. Timestamp columns are stored as `timestamp without time zone` and all data is treated as UTC. If the schema gains new tables (e.g. `daily_smma_99`), run `make init-db` again; it uses `IF NOT EXISTS` so existing data is safe.
 
 ## Cron (scheduled updates)
 
@@ -87,4 +87,4 @@ The alert system runs as a separate service. It should **read** from the same Po
 
 ### Reading from the database
 
-Connect to the same Postgres instance with `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`. Tables (all timestamps UTC, `timestamp without time zone`): `ohlc_data`, `ema_data`, `rsi_data`, `obv_data`, `ce_data`, `pivot_data`.
+Connect to the same Postgres instance with `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`. Tables (all timestamps UTC, `timestamp without time zone`): `ohlc_data`, `ema_data`, `rsi_data`, `obv_data`, `ce_data`, `pivot_data`, `daily_smma_99`.

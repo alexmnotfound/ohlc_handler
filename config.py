@@ -12,7 +12,7 @@ class MarketConfig:
     # Market Configuration
     DEFAULT_START_DATE: datetime = datetime(2024, 1, 1, tzinfo=timezone.utc)
     TICKERS: List[str] = field(default_factory=lambda: [
-    "ARBUSDT", "ATOMUSDT", "AVAXUSDT", "BCHUSDT", "BERTUSDT", "BNBUSDT", "BTCUSDT",
+    "ARBUSDT", "ATOMUSDT", "AVAXUSDT", "BCHUSDT", "BNBUSDT", "BTCUSDT",
     "DOGEUSDT", "DOTUSDT", "ENAUSDT", "ETCUSDT", "ETHUSDT", "FILUSDT", "HBARUSDT",
     "INJUSDT", "IOTAUSDT", "LINKUSDT", "LTCUSDT", "MANAUSDT", "NEARUSDT", "NEOUSDT",
     "OPUSDT", "POLUSDT", "RENDERUSDT", "RUNEUSDT", "SANDUSDT", "SNXUSDT", "SOLUSDT",
@@ -28,7 +28,7 @@ class MarketConfig:
 
     # Technical Indicator Settings
     # EMA periods
-    EMA_PERIODS: List[int] = field(default_factory=lambda: [11, 22, 200])
+    EMA_PERIODS: List[int] = field(default_factory=lambda: [11, 22, 50, 200])
 
     # RSI settings
     RSI_PERIOD: int = 14
@@ -39,6 +39,9 @@ class MarketConfig:
     OBV_MA_TYPE: str = "EMA" 
     OBV_MA_PERIOD: int = 20
     OBV_BB_STD: float = 2.0
+
+    # ATR settings
+    ATR_PERIODS: List[int] = field(default_factory=lambda: [14, 22])
 
     # Chandelier Exit settings
     CE_PERIOD: int = 22
